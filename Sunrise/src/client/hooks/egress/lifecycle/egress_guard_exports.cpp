@@ -99,10 +99,6 @@ bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
                 target = reinterpret_cast<void*>(&Dummy_GetAddrInfoExA);
                 resolved[index] = false;
             } else {
-                std::ofstream out("sunrise_debug.txt", std::ios::app);
-                            out << "[Resolve Specs] FAILED: GetProcAddress could not find '"
-                                << definition.name << "' at index " << index << "\n";
-                // Older Windows builds cannot expose an egress path through an absent DnsQueryRaw.
                 return index == kRequiredHookCount;
             }
         } else {
