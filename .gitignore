@@ -2,9 +2,11 @@
 /.vs/
 /.idea/
 /.vscode/
+/.xwin-cache/
 *.user
 *.suo
 *.userosscache
 *.sln.docstates
 *.aps
 *.log
+/.direnv/
