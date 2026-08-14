@@ -1,7 +1,10 @@
+#include <string>
+
 #include "../dns/egress_dns_replacements.h"
 #include "../extensions/egress_extension_replacements.h"
 #include "../resolver/replacements.h"
 #include "../winsock/replacements.h"
+#include "core/runtime/host_environment.h"
 #include "internal.h"
 
 namespace sunrise::client::hooks::egress::lifecycle {
@@ -21,12 +24,28 @@ export_definition(ModuleSlot module, const char* name, Function replacement) noe
 
 } // namespace
 
+// Dummy functions, these are not exported by wine so we provide at least 5 bytes for detours to
+// copy
+__declspec(noinline) int WSAAPI Dummy_WSAConnectByList() {
+    volatile int dummy = 0;
+    dummy += 1;
+    return -1; // SOCKET_ERROR
+}
+
+__declspec(noinline) int WSAAPI Dummy_GetAddrInfoExA() {
+    volatile int dummy = 0;
+    dummy += 1;
+    return 11001; // WSAHOST_NOT_FOUND
+}
+
 /** Finds the whole Windows SDK egress surface for one atomic Detours batch. */
 bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
                    std::span<const char*, kHookCount> names,
                    std::span<bool, kHookCount> resolved,
                    std::size_t& count) noexcept {
     count = 0;
+    const bool is_wine = sunrise::core::runtime::is_wine();
+
     const std::array<ExportDefinition, kHookCount> exports{
         export_definition(ModuleSlot::winsock, "connect", &winsock::connection::connect_socket),
         export_definition(
@@ -71,14 +90,27 @@ bool resolve_specs(std::span<hooking::detour::Spec, kHookCount> specs,
     for (std::size_t index = 0; index < exports.size(); ++index) {
         const ExportDefinition& definition = exports[index];
         const HMODULE module = module_handle(definition.module);
-        void* const target = reinterpret_cast<void*>(GetProcAddress(module, definition.name));
+        void* target = reinterpret_cast<void*>(GetProcAddress(module, definition.name));
         names[index] = definition.name;
-        resolved[index] = target != nullptr;
-        if (target == nullptr) {
-            // Older Windows builds cannot expose an egress path through an absent DnsQueryRaw.
-            return index == kRequiredHookCount;
+
+        if (target == nullptr && is_wine) {
+            const std::string_view funcName(definition.name);
+            if (funcName == "WSAConnectByList") {
+                target = reinterpret_cast<void*>(&Dummy_WSAConnectByList);
+            } else if (funcName == "GetAddrInfoExA") {
+                target = reinterpret_cast<void*>(&Dummy_GetAddrInfoExA);
+            }
         }
-        specs[index] = hooking::detour::Spec{target, definition.replacement};
+
+        resolved[index] = target != nullptr;
+
+        if (target == nullptr) {
+            if (index < kRequiredHookCount) {
+                return false;
+            }
+            continue;
+        }
+        specs[count] = hooking::detour::Spec{target, definition.replacement};
         count = index + 1;
     }
     return count >= kRequiredHookCount;
