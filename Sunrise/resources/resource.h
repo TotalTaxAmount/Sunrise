@@ -10,7 +10,7 @@
 /** The four numeric fields of the version resource, in FILEVERSION order. */
 #define SUNRISE_VER_MAJOR 0
 #define SUNRISE_VER_MINOR 2
-#define SUNRISE_VER_PATCH 0
+#define SUNRISE_VER_PATCH 1
 #define SUNRISE_VER_BUILD 0
 /** The same version as display text. Windows shows this string, not the four fields. */
-#define SUNRISE_VER_STRING "0.2.0.0"
+#define SUNRISE_VER_STRING "0.2.1.0"

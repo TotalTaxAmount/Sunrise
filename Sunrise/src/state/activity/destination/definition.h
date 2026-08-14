@@ -80,6 +80,10 @@ struct DestinationSelection final {
     std::array<std::byte, kDescriptorCapacity> descriptorBits{};
     /** Meaningful bits in descriptorBits, or zero when no descriptor was captured. */
     std::uint16_t descriptorBitLength{};
+    /** First name byte's bit offset inside descriptorBits. A forced name is written there. */
+    std::uint16_t descriptorNameBit{};
+    /** True only when the captured descriptor carried the fixed package-name field. */
+    bool hasDescriptorName{};
 };
 
 /**

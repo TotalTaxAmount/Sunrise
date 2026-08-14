@@ -109,10 +109,13 @@ constexpr std::size_t kPairEntryWidth = 13;
  * The field is always 40 elements and its tail is padding, so a byte that cannot appear in a
  * name ends the name instead of failing the descriptor and losing the destination choice.
  * @param reader Bounded MSB-first descriptor reader.
+ * @param descriptorStart Reader bits left at the descriptor's first bit.
  * @param selection Temporary scalar-only selection output.
  * @return True when the presence marker and all 40 biased bytes are complete.
  */
-[[nodiscard]] bool read_package_name(Reader& reader, ActivityManagerSelection& selection) noexcept {
+[[nodiscard]] bool read_package_name(Reader& reader,
+                                     std::size_t descriptorStart,
+                                     ActivityManagerSelection& selection) noexcept {
     bool present = false;
     if (!read_presence(reader, present)) {
         return false;
@@ -120,6 +123,8 @@ constexpr std::size_t kPairEntryWidth = 13;
     if (!present) {
         return true;
     }
+    // A forced destination rewrites these bytes in place, so where they sit is kept with them.
+    const std::size_t nameStart = descriptorStart - reader.remaining_bits();
     bool ended = false;
     std::uint8_t length = 0;
     for (std::int8_t& character : selection.packageName) {
@@ -137,6 +142,7 @@ constexpr std::size_t kPairEntryWidth = 13;
     }
     selection.hasPackageName = true;
     selection.packageNameLength = length;
+    selection.packageNameBitOffset = nameStart;
     return true;
 }
 
@@ -157,15 +163,18 @@ constexpr std::size_t kPairEntryWidth = 13;
 /**
  * Reads the safe destination fields and skips the unknown fixed and optional scalars.
  * @param reader Bounded MSB-first descriptor reader.
+ * @param descriptorStart Reader bits left at the descriptor's first bit.
  * @param selection Temporary scalar-only selection output.
  * @return True when every destination field is complete.
  */
-[[nodiscard]] bool read_destination(Reader& reader, ActivityManagerSelection& selection) noexcept {
+[[nodiscard]] bool read_destination(Reader& reader,
+                                    std::size_t descriptorStart,
+                                    ActivityManagerSelection& selection) noexcept {
     return reader.skip(kUnknownByteWidth) && skip_optional(reader, kUnknownByteWidth)
            && read_hash(reader, selection.hasArrivalBubbleHash, selection.arrivalBubbleHash)
            && read_hash(reader, selection.hasSpawnSetHash, selection.spawnSetHash)
-           && read_package_name(reader, selection) && skip_optional(reader, kUnknownHashWidth)
-           && reader.skip(kBooleanWidth);
+           && read_package_name(reader, descriptorStart, selection)
+           && skip_optional(reader, kUnknownHashWidth) && reader.skip(kBooleanWidth);
 }
 
 /**
@@ -202,7 +211,8 @@ constexpr std::size_t kPairEntryWidth = 13;
 
 /** Reads one complete descriptor into safe scalar-only output. */
 bool parse(Reader& reader, ActivityManagerSelection& selection) noexcept {
-    return read_prefix(reader, selection) && read_destination(reader, selection)
+    const std::size_t descriptorStart = reader.remaining_bits();
+    return read_prefix(reader, selection) && read_destination(reader, descriptorStart, selection)
            && skip_tail(reader);
 }
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cstdio>
 
 #include "../../../../core/logging/log.h"
@@ -192,41 +193,39 @@ void report_message(std::uint32_t messageType,
     return true;
 }
 
+/** @return How many slots one authority mask names. */
+[[nodiscard]] std::size_t
+mask_slot_count(const service::entity_slots::EntitySlotMask& mask) noexcept {
+    std::size_t slots = 0;
+    for (const std::byte value : mask) {
+        slots += static_cast<std::size_t>(std::popcount(std::to_integer<unsigned char>(value)));
+    }
+    return slots;
+}
+
 /**
- * Stages a release for the slots msg 26 or msg 33 gives back.
- * Both carry the same mask, so both return leases the same way.
+ * Reports one msg 26 or msg 33. Neither returns a lease. Msg 21 does.
  * @param request Validated owned svc8 envelope.
  * @param expectReason True for msg 26, which trails a 3-bit reason after the mask.
- * @param plan Cleared, then receives the chosen release mask.
- * @return True when the fixed body decodes and its session can stage a release.
+ * @return True when the fixed body for that message type decodes.
  */
-[[nodiscard]] bool prepare_authority_release(const service::Request& request,
-                                             bool expectReason,
-                                             ActivityPlan& plan) noexcept {
+[[nodiscard]] bool report_authority_release(const service::Request& request,
+                                            bool expectReason) noexcept {
     authority::Release decoded;
     const bool parsed = expectReason ? authority::parse_abandon(request.payload, decoded)
                                      : authority::parse_abdicate(request.payload, decoded);
     if (!parsed) {
         return false;
     }
-    state::activity::entity_slots::LeaseMask returned{};
-    std::copy(decoded.mask.begin(), decoded.mask.end(), returned.begin());
-    if (!state::activity::entity_slots::prepare_release(
-            request.accountHandle, returned, plan.entitySlotMutation)) {
-        return false;
-    }
-    plan.sessionId = request.accountHandle;
-    plan.delivery = Delivery::none;
-    plan.mutationDomain = MutationDomain::entitySlots;
-
     std::array<char, core::log::kLineCapacity> line{};
     const int written = std::snprintf(line.data(),
                                       line.size(),
-                                      "ev=activity stage=authority result=ok type=%u selector=%u "
-                                      "reason=%d",
+                                      "ev=activity stage=authority result=noted type=%u "
+                                      "selector=%u reason=%d slots=%zu",
                                       request.messageType,
                                       static_cast<unsigned>(decoded.selector),
-                                      decoded.hasReason ? decoded.reason : 0);
+                                      decoded.hasReason ? decoded.reason : 0,
+                                      mask_slot_count(decoded.mask));
     if (written > 0) {
         core::log::write(core::log::Channel::server,
                          core::log::Level::debug,
@@ -350,9 +349,15 @@ bool process(std::uint64_t boundSessionId,
     } else if (request.messageType == service::membership_acknowledgement::kMessageType) {
         prepared = membership::prepare_acknowledgement(request, plan);
     } else if (request.messageType == authority::kAbandonMessageType) {
-        prepared = prepare_authority_release(request, true, plan);
+        if (!report_authority_release(request, true)) {
+            report_message(request.messageType, request.accountHandle, "parse");
+        }
+        return true;
     } else if (request.messageType == authority::kAbdicateMessageType) {
-        prepared = prepare_authority_release(request, false, plan);
+        if (!report_authority_release(request, false)) {
+            report_message(request.messageType, request.accountHandle, "parse");
+        }
+        return true;
     } else if (request.messageType == service::incident::kMessageType) {
         report_incident(request);
         return true;

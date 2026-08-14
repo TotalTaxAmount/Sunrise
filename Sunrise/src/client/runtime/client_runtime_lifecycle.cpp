@@ -56,9 +56,11 @@ bool shutdown() noexcept {
     hooks::teleport::uninstall();
     hooks::queuez::uninstall();
     if (!hooks::config_getter::uninstall()) {
+        ReleaseSRWLockExclusive(&runtime::g_lock);
         return false;
     }
     if (!hooks::assert_handler::uninstall()) {
+        ReleaseSRWLockExclusive(&runtime::g_lock);
         return false;
     }
     if (!hooks::retail_log::uninstall()) {

@@ -57,6 +57,8 @@ struct ActivityManagerSelection final {
     std::uint8_t packageNameLength{};
     /** Checked package-name bytes, then zero padding. */
     std::array<std::int8_t, kActivityManagerPackageNameCapacity> packageName{};
+    /** First name byte's bit offset from the descriptor's first bit. Valid with hasPackageName. */
+    std::size_t packageNameBitOffset{};
     /** Last root boolean. Its gameplay meaning is not known. */
     bool trailingFlag{};
     /**
