@@ -233,11 +233,18 @@ private:
      */
     [[nodiscard]] bool key_binding(state::account::settings::bindings::Binding& output) noexcept;
     /**
-     * Parses one optional 16-bit input code. Lossy JSON numbers are refused.
+     * Parses one optional input name. Numbers are not accepted.
      * @param output Receives a code or the unbound null state.
-     * @return True for null or an unsigned integer that fits the authored form.
+     * @return True for null or a name the Client's own input table carries.
      */
     [[nodiscard]] bool optional_input_code(std::optional<std::uint16_t>& output) noexcept;
+    /**
+     * Turns one authored input name into its input code.
+     * @param name Key name, or one modifier and the key it prefixes joined by "+".
+     * @return True when every part of the name is in the Client's input table.
+     */
+    [[nodiscard]] static bool input_code_value(std::string_view name,
+                                               std::uint16_t& output) noexcept;
     /**
      * Parses logging sinks and channel levels.
      * @param output Receives supported logging values.

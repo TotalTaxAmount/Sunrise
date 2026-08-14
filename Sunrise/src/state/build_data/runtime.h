@@ -127,7 +127,7 @@ publish_progression_definitions(std::span<const progressions::Definition> defini
 [[nodiscard]] bool ability_buckets_ready() noexcept;
 
 /**
- * Publishes the ability buckets every configured subclass and movement selection publishes.
+ * Publishes the ability buckets every configured subclass and ability selection publishes.
  * @param definitions Complete rows, or an empty complete domain.
  * @return True when the rows pass the checks and any needed cache write succeeds.
  */
@@ -135,13 +135,14 @@ publish_progression_definitions(std::span<const progressions::Definition> defini
 publish_ability_buckets(std::span<const abilities::Definition> definitions) noexcept;
 
 /**
- * Finds the buckets one subclass publishes under one movement selection.
+ * Finds the buckets one subclass publishes under one ability selection.
  * @param socketEntryListIndex Native socket-entry-list index of the subclass.
+ * @param selection The character's 5 selected socket entries.
  * @param definition Receives the matching row.
  * @return True when the domain is ready and holds that exact key.
  */
 [[nodiscard]] bool find_ability_buckets(std::uint16_t socketEntryListIndex,
-                                        std::uint8_t movementEntry,
+                                        const abilities::Selection& selection,
                                         abilities::Definition& definition) noexcept;
 
 /** @return True when the installed investment constants are in State. */

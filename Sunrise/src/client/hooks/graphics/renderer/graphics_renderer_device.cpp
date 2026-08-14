@@ -2,6 +2,7 @@
 
 #include <dxgi.h>
 
+#include "graphics_renderer_report.h"
 #include "state.h"
 
 namespace sunrise::client::hooks::graphics::renderer {
@@ -15,31 +16,35 @@ namespace {
 
 } // namespace
 
-/** Drops our RTV before the original resize call runs. */
-void before_resize(IDXGISwapChain* swapChain) noexcept {
+/** Drops our RTV before the original call runs. Our view would pin the old back buffer. */
+void before_surface_change(IDXGISwapChain* swapChain) noexcept {
     AcquireSRWLockExclusive(&g_rendererLock);
     if (g_resources.swapChain == swapChain) {
-        if (g_resources.activeResizeCalls == 0) {
+        if (g_resources.activeSurfaceChanges == 0) {
             // The first of any overlapping calls drops the RTV until they have all returned.
             release_render_target(g_resources);
         }
-        ++g_resources.activeResizeCalls;
+        ++g_resources.activeSurfaceChanges;
     }
     ReleaseSRWLockExclusive(&g_rendererLock);
 }
 
-/** Rebuilds our render state after the original resize returns. */
-void after_resize(IDXGISwapChain* swapChain, HRESULT result) noexcept {
+/** Rebuilds our render state after the original call returns. */
+void after_surface_change(IDXGISwapChain* swapChain, HRESULT result) noexcept {
     AcquireSRWLockExclusive(&g_rendererLock);
-    if (g_resources.swapChain == swapChain && g_resources.activeResizeCalls != 0) {
-        g_resources.resizeDeviceLost = g_resources.resizeDeviceLost || is_device_loss(result);
-        --g_resources.activeResizeCalls;
-        if (g_resources.activeResizeCalls == 0) {
+    if (g_resources.swapChain == swapChain && g_resources.activeSurfaceChanges != 0) {
+        g_resources.surfaceChangeDeviceLost =
+            g_resources.surfaceChangeDeviceLost || is_device_loss(result);
+        --g_resources.activeSurfaceChanges;
+        if (g_resources.activeSurfaceChanges == 0) {
             const bool targetReady = create_render_target(g_resources);
-            const bool deviceLost = g_resources.resizeDeviceLost;
-            g_resources.resizeDeviceLost = false;
+            const bool deviceLost = g_resources.surfaceChangeDeviceLost;
+            g_resources.surfaceChangeDeviceLost = false;
             if (deviceLost || !targetReady) {
                 // No RTV goes out until the last overlapping call has returned.
+                report::note(report::Stage::shutdown,
+                             deviceLost ? report::Reason::deviceLost
+                                        : report::Reason::rebuildTarget);
                 (void)shutdown_locked();
             }
         }
@@ -54,6 +59,7 @@ void present_result(IDXGISwapChain* swapChain, HRESULT result) noexcept {
     }
     AcquireSRWLockExclusive(&g_rendererLock);
     if (g_resources.swapChain == swapChain) {
+        report::note(report::Stage::shutdown, report::Reason::deviceLost);
         (void)shutdown_locked();
     }
     ReleaseSRWLockExclusive(&g_rendererLock);

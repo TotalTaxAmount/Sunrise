@@ -132,12 +132,12 @@ read_investment_constants(const reader::Source& source,
                           state::build_data::constants::InvestmentConstants& output) noexcept;
 
 /**
- * Builds the ability buckets one subclass publishes under one movement selection.
+ * Builds the ability buckets one subclass publishes under one ability selection.
  * @param source Package source.
  * @param scratch Reader scratch.
  * @param listDefinition Socket-entry-list definition bytes of the subclass.
  * @param blob Scratch storage reused for every pool blob.
- * @param movementEntry Selected movement entry.
+ * @param selection The character's 5 selected socket entries.
  * @param output Receives the 12 buckets and the overflow bank.
  * @return True when every selected entry reaches a bucket of its own.
  */
@@ -145,12 +145,12 @@ read_investment_constants(const reader::Source& source,
                                          reader::Scratch& scratch,
                                          std::span<const std::byte> listDefinition,
                                          std::vector<std::byte>& blob,
-                                         std::uint8_t movementEntry,
+                                         const state::build_data::abilities::Selection& selection,
                                          state::build_data::abilities::Definition& output) noexcept;
 
 /**
- * Builds one ability bucket row per distinct subclass and movement selection in use.
- * Two characters on the same subclass with the same movement selection publish identical
+ * Builds one ability bucket row per distinct subclass and ability selection in use.
+ * Two characters on the same subclass with the same ability selection publish identical
  * buckets, so the row is keyed by both and built once.
  * @param source Package source.
  * @param scratch Reader scratch.
@@ -214,7 +214,7 @@ investment_globals_tags(std::array<std::uint32_t, kContainerCandidates>& candida
 /** @param slot Requested-set position. @param definitionIndex Native item index that failed. */
 void report_detail_failure(std::size_t slot, std::uint16_t definitionIndex) noexcept;
 
-/** @param count Ability bucket rows the pass built, one per subclass and movement selection. */
+/** @param count Ability bucket rows the pass built, one per subclass and ability selection. */
 void report_ability_count(std::size_t count) noexcept;
 
 /** @param count Detail rows the pass built, covering equipped items and every plug they socket. */

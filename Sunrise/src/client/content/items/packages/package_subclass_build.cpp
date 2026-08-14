@@ -39,16 +39,25 @@ constexpr std::size_t kSubclassSlot =
                         const domain::Definition& row) noexcept {
     for (const domain::Definition& existing : rows) {
         if (existing.socketEntryListIndex == row.socketEntryListIndex
-            && existing.movementEntry == row.movementEntry) {
+            && existing.selection == row.selection) {
             return true;
         }
     }
     return false;
 }
 
+/** @param character Authored character. @return Its 5 selected socket entries. */
+[[nodiscard]] domain::Selection selection_of(const state::CharacterState& character) noexcept {
+    return {character.movementAbilityEntry,
+            character.grenadeAbilityEntry,
+            character.superAbilityEntry,
+            character.meleeAbilityEntry,
+            character.classAbilityEntry};
+}
+
 } // namespace
 
-/** Builds one ability bucket row per distinct subclass and movement selection in use. */
+/** Builds one ability bucket row per distinct subclass and ability selection in use. */
 bool build_character_abilities(const reader::Source& source,
                                reader::Scratch& scratch,
                                std::span<const std::byte> root,
@@ -73,7 +82,9 @@ bool build_character_abilities(const reader::Source& source,
         if (!subclass_list(account.characters[character], row.socketEntryListIndex)) {
             continue;
         }
-        row.movementEntry = account.characters[character].movementAbilityEntry;
+        // The selection is held in a local because the row it also keys is the build's output.
+        const domain::Selection selection = selection_of(account.characters[character]);
+        row.selection = selection;
         if (held(output.first(count), row)) {
             continue;
         }
@@ -82,12 +93,8 @@ bool build_character_abilities(const reader::Source& source,
                 std::span<const std::byte>{table}, rows, row.socketEntryListIndex, indexRow)
             || indexRow.targetTag == 0
             || !reader::read_tag(source, scratch, indexRow.targetTag, definition)
-            || !build_ability_buckets(source,
-                                      scratch,
-                                      std::span<const std::byte>{definition},
-                                      blob,
-                                      row.movementEntry,
-                                      row)) {
+            || !build_ability_buckets(
+                source, scratch, std::span<const std::byte>{definition}, blob, selection, row)) {
             continue;
         }
         output[count++] = row;

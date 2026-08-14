@@ -57,12 +57,6 @@ struct ActivityManagerSelection final {
     std::uint8_t packageNameLength{};
     /** Checked package-name bytes, then zero padding. */
     std::array<std::int8_t, kActivityManagerPackageNameCapacity> packageName{};
-    /**
-     * Bit offset of the first name element inside descriptorBits, valid with hasPackageName. A
-     * host sending the client elsewhere rewrites the name in the replayed bits instead of
-     * re-encoding the descriptor, which would drop the fields with no known name.
-     */
-    std::size_t packageNameBit{};
     /** Last root boolean. Its gameplay meaning is not known. */
     bool trailingFlag{};
     /**

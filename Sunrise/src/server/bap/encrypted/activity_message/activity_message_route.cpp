@@ -13,7 +13,9 @@
 #include "../../../../middleware/bap/activity_message/activity_message_request_parser.h"
 #include "../../../../middleware/bap/activity_message/activity_state_refresh_parser.h"
 #include "../../../../middleware/bap/activity_message/client_authoritative_data.h"
+#include "../../../../middleware/bap/activity_message/entity_authority.h"
 #include "../../../../middleware/bap/activity_message/entity_slots.h"
+#include "../../../../middleware/bap/activity_message/incident.h"
 #include "../../../../state/activity/runtime.h"
 #include "membership/activity_membership_route.h"
 #include "middleware/bap/activity_message/activity_entity_slot_request_parser.h"
@@ -23,12 +25,102 @@ namespace sunrise::server::bap::encrypted::activity_message {
 namespace {
 
 namespace service = middleware::bap::activity_message;
+namespace authority = service::entity_authority;
 namespace client_keepalive = service::client_keepalive;
 namespace high_water = service::high_water;
 namespace epoch_message = service::patch_epoch;
 
 /** Activity message type 3 starts the client join transaction. */
 constexpr std::uint32_t kJoinRequestMessageType = 3;
+
+/** One row per Client-sent message this route accepts but has no state to change for. */
+struct AcceptedMessage {
+    std::uint32_t type;
+    const char* name;
+};
+
+/**
+ * The Client senders that carry no work for this host. Each is one-way, so accepting is the whole
+ * contract. The names are the binary's own, so a log line says what arrived.
+ */
+constexpr std::array<AcceptedMessage, 14> kAcceptedMessages{{
+    {6, "sensor_sense_update"},
+    {8, "request_activity_host"},
+    {11, "start_new_activity"},
+    {13, "request_peer_reservation"},
+    {14, "release_peer_reservation"},
+    {15, "peer_leave_request"},
+    {34, "process_debug_command"},
+    {37, "connectivity_failure"},
+    {39, "send_client_heartbeat"},
+    {43, "bug_claw"},
+    {46, "report_lag_switch"},
+    {47, "connection_quality_report"},
+    {48, "speculative_migration"},
+    {50, "refresh_inspirations"},
+}};
+
+/** @return The binary name for one accepted message type, or nullptr when it is not one. */
+[[nodiscard]] const char* accepted_name(std::uint32_t messageType) noexcept {
+    const auto row = std::find_if(kAcceptedMessages.begin(),
+                                  kAcceptedMessages.end(),
+                                  [messageType](const AcceptedMessage& candidate) noexcept {
+                                      return candidate.type == messageType;
+                                  });
+    return row == kAcceptedMessages.end() ? nullptr : row->name;
+}
+
+/**
+ * Records one accepted message that changes no host state.
+ * @param messageType Activity message type from the envelope.
+ * @param name Binary name for that type.
+ * @param payloadSize Declared payload bytes, which is the only thing that varies here.
+ */
+void report_accepted(std::uint32_t messageType,
+                     const char* name,
+                     std::size_t payloadSize) noexcept {
+    std::array<char, core::log::kLineCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=activity stage=message result=accept type=%u name=%s "
+                                      "bytes=%zu",
+                                      messageType,
+                                      name,
+                                      payloadSize);
+    if (written > 0) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::debug,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/**
+ * Checks one incident and reports its verdict. Nothing relays msg 19 yet, so a pass changes
+ * nothing. A failure is named because a bad target index would crash the Client if it were sent on.
+ * @param request Validated owned svc8 envelope.
+ */
+void report_incident(const service::Request& request) noexcept {
+    namespace incident = service::incident;
+    incident::Incident parsed;
+    const incident::Verdict verdict = incident::validate(request.payload, parsed);
+    std::array<char, core::log::kLineCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=activity stage=incident result=%s target=%u extra=%u "
+                                      "selector=%u payload=%u",
+                                      incident::verdict_name(verdict),
+                                      parsed.primaryTarget,
+                                      parsed.extraTargetCount,
+                                      static_cast<unsigned>(parsed.hasCompressedSelector),
+                                      parsed.payloadLength);
+    if (written <= 0) {
+        return;
+    }
+    const auto level =
+        verdict == incident::Verdict::accepted ? core::log::Level::debug : core::log::Level::warn;
+    core::log::write(
+        core::log::Channel::server, level, {line.data(), static_cast<std::size_t>(written)});
+}
 
 /**
  * Reports one activity message the route did not stage, naming its type.
@@ -101,6 +193,100 @@ void report_message(std::uint32_t messageType,
 }
 
 /**
+ * Stages a release for the slots msg 26 or msg 33 gives back.
+ * Both carry the same mask, so both return leases the same way.
+ * @param request Validated owned svc8 envelope.
+ * @param expectReason True for msg 26, which trails a 3-bit reason after the mask.
+ * @param plan Cleared, then receives the chosen release mask.
+ * @return True when the fixed body decodes and its session can stage a release.
+ */
+[[nodiscard]] bool prepare_authority_release(const service::Request& request,
+                                             bool expectReason,
+                                             ActivityPlan& plan) noexcept {
+    authority::Release decoded;
+    const bool parsed = expectReason ? authority::parse_abandon(request.payload, decoded)
+                                     : authority::parse_abdicate(request.payload, decoded);
+    if (!parsed) {
+        return false;
+    }
+    state::activity::entity_slots::LeaseMask returned{};
+    std::copy(decoded.mask.begin(), decoded.mask.end(), returned.begin());
+    if (!state::activity::entity_slots::prepare_release(
+            request.accountHandle, returned, plan.entitySlotMutation)) {
+        return false;
+    }
+    plan.sessionId = request.accountHandle;
+    plan.delivery = Delivery::none;
+    plan.mutationDomain = MutationDomain::entitySlots;
+
+    std::array<char, core::log::kLineCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=activity stage=authority result=ok type=%u selector=%u "
+                                      "reason=%d",
+                                      request.messageType,
+                                      static_cast<unsigned>(decoded.selector),
+                                      decoded.hasReason ? decoded.reason : 0);
+    if (written > 0) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::debug,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+    return true;
+}
+
+/**
+ * Reports one msg 29, 31 or 32 answer. This host sends no msg 28 or msg 30, so an answer here is
+ * the Client reconciling on its own. Nothing is staged.
+ * @param request Validated owned svc8 envelope.
+ * @return True when the body for that message type decodes.
+ */
+[[nodiscard]] bool report_query_answer(const service::Request& request) noexcept {
+    namespace authority = service::entity_authority;
+    authority::QueryAnswer answer;
+    if (!authority::parse_query_answer(request.messageType, request.payload, answer)) {
+        return false;
+    }
+    std::array<char, core::log::kLineCapacity> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=activity stage=authority result=ok type=%u corr=0x%08X "
+                                      "selector=%d mask=%u",
+                                      request.messageType,
+                                      answer.correlation,
+                                      answer.hasSelector ? static_cast<int>(answer.selector) : -1,
+                                      static_cast<unsigned>(answer.hasMask));
+    if (written > 0) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::debug,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+    return true;
+}
+
+/**
+ * Reports one msg 27 purge request. The host does not answer it: the reply is msg 25, whose
+ * consumer asserts unless the epoch is one above the Client's own, and nothing here tracks that.
+ * @param request Validated owned svc8 envelope.
+ * @return True when the fixed body is present.
+ */
+[[nodiscard]] bool report_request_purge(const service::Request& request) noexcept {
+    std::int32_t reason = 0;
+    if (!service::entity_authority::parse_request_purge(request.payload, reason)) {
+        return false;
+    }
+    std::array<char, core::log::kLineCapacity> line{};
+    const int written = std::snprintf(
+        line.data(), line.size(), "ev=activity stage=purge result=noted reason=%d", reason);
+    if (written > 0) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::debug,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+    return true;
+}
+
+/**
  * Prepares only the slots that are both held and in the returned mask.
  * @param request Validated owned svc8 envelope.
  * @param plan Cleared, then receives the chosen release mask.
@@ -163,6 +349,29 @@ bool process(std::uint64_t boundSessionId,
         prepared = membership::prepare_authoritative(request, plan);
     } else if (request.messageType == service::membership_acknowledgement::kMessageType) {
         prepared = membership::prepare_acknowledgement(request, plan);
+    } else if (request.messageType == authority::kAbandonMessageType) {
+        prepared = prepare_authority_release(request, true, plan);
+    } else if (request.messageType == authority::kAbdicateMessageType) {
+        prepared = prepare_authority_release(request, false, plan);
+    } else if (request.messageType == service::incident::kMessageType) {
+        report_incident(request);
+        return true;
+    } else if (request.messageType == authority::kRequestPurgeMessageType) {
+        if (!report_request_purge(request)) {
+            report_message(request.messageType, request.accountHandle, "parse");
+        }
+        return true;
+    } else if (request.messageType == authority::kResetAcknowledgementMessageType
+               || request.messageType == authority::kQueryPerBubbleMessageType
+               || request.messageType == authority::kQueryResponseMessageType) {
+        if (!report_query_answer(request)) {
+            report_message(request.messageType, request.accountHandle, "parse");
+        }
+        return true;
+    } else if (const char* name = accepted_name(request.messageType); name != nullptr) {
+        // One-way with nothing to change here. Accepting is the whole contract.
+        report_accepted(request.messageType, name, request.payload.size());
+        return true;
     } else {
         // Later message handlers are independent. An owned envelope is a safe no-op.
         report_message(request.messageType, request.accountHandle, "unhandled");

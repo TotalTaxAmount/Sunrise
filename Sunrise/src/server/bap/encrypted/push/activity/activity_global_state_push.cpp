@@ -9,6 +9,7 @@
 #include "../../../../../middleware/secure_channel/runtime.h"
 #include "../../../../../state/activity/defaults/activity_defaults_snapshot.h"
 #include "../../../../../state/activity/destination/activity_destination_snapshot.h"
+#include "../../../../../state/activity/destination/activity_destination_spawn_binding.h"
 #include "../../../../../state/build_data/runtime.h"
 #include "activity_arrival.h"
 #include "activity_notification_frame.h"
@@ -66,7 +67,7 @@ resolve_state(std::uint64_t sessionId,
     output.fromActivityIndex = selection.previousActivityIndex;
     output.activityIndex = selection.activityIndex;
     output.spawnSetHash =
-        state::activity::destination::resolve_spawn_set_hash(selection, fallback.spawnSetHash);
+        state::activity::destination::attachable_spawn_set_hash(selection, fallback.spawnSetHash);
 
     // The extracted layout wins where the packages carry one. The count and the output array must
     // come from the same source: a count from one and states from another is how uniform values

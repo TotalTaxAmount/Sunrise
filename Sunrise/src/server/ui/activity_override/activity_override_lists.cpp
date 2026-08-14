@@ -103,7 +103,6 @@ void clear_spawns(Lists& rows) noexcept {
     rows.spawnNarrowed = false;
     rows.spawnHidden = 0;
     rows.spawnForeign = 0;
-    rows.spawnFallback = state::activity::forced::kAbsentSpawnSetHash;
 }
 
 /** Clears every list that belongs to the selected destination. */
@@ -228,11 +227,6 @@ void build_spawns(Lists& rows, std::string_view stem, std::uint16_t mapIndex) no
         rows.spawns[rows.spawnCount] = label;
         rows.spawnHashes[rows.spawnCount] = hash;
         ++rows.spawnCount;
-        // The Client swaps in `default` for an unnamed point, so either one makes `default` the
-        // safe unchosen value. A map with neither gets the absent hash and its own search.
-        if (hash == tables::kDefaultSpawnNameHash || hash == tables::kUnnamedSpawnNameHash) {
-            rows.spawnFallback = state::activity::forced::kDefaultSpawnSetHash;
-        }
     }
 }
 

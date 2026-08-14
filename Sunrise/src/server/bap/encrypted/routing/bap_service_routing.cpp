@@ -73,6 +73,38 @@ bool resolve(std::uint16_t request, ServiceRoute& route) noexcept {
                  BodyCodec::accountTranslationResponse,
                  "ev=bap svc=23 rsp=24 result=ok"};
         return true;
+    // These five need a reply: each holds the head of the Client's pending queue until one comes.
+    // Every field of their response bodies is optional, so an empty body is valid.
+    case middleware::bap::RequestService::skill:
+        route = {ResponseMode::reply,
+                 middleware::bap::ResponseService::skill,
+                 BodyCodec::empty,
+                 "ev=bap svc=34 rsp=35 result=ok"};
+        return true;
+    case middleware::bap::RequestService::request36:
+        route = {ResponseMode::reply,
+                 middleware::bap::ResponseService::response37,
+                 BodyCodec::empty,
+                 "ev=bap svc=36 rsp=37 result=ok"};
+        return true;
+    case middleware::bap::RequestService::request38:
+        route = {ResponseMode::reply,
+                 middleware::bap::ResponseService::response39,
+                 BodyCodec::empty,
+                 "ev=bap svc=38 rsp=39 result=ok"};
+        return true;
+    case middleware::bap::RequestService::request40:
+        route = {ResponseMode::reply,
+                 middleware::bap::ResponseService::response41,
+                 BodyCodec::empty,
+                 "ev=bap svc=40 rsp=41 result=ok"};
+        return true;
+    case middleware::bap::RequestService::request48:
+        route = {ResponseMode::reply,
+                 middleware::bap::ResponseService::response49,
+                 BodyCodec::empty,
+                 "ev=bap svc=48 rsp=49 result=ok"};
+        return true;
     case middleware::bap::RequestService::matchmaking:
         route = {ResponseMode::reply,
                  middleware::bap::ResponseService::matchmaking,
@@ -126,6 +158,7 @@ bool resolve(std::uint16_t request, ServiceRoute& route) noexcept {
         return true;
     default:
         // Unknown services stay quiet. Failing the send would drop the whole BAP link.
+        // Quiet is only safe when the service has no response id. A request needs a case above.
         route = {
             ResponseMode::none, {}, BodyCodec::empty, "ev=bap svc=unhandled rsp=none result=ok"};
         return true;

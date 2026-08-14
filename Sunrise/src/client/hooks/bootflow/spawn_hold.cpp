@@ -25,13 +25,6 @@ constexpr auto kSpawnGateSignature =
 /** Answer that holds the spawn for this tick. The gate is polled, so a refusal only delays it. */
 constexpr bool kHeld = false;
 
-/**
- * Longest the spawn is held for one load. The slice-set load step takes 9.2 to 14.1 s, so this is
- * twice the worst load seen. Only a destination that never reaches the in-world step hits it, and
- * spawning such a load early beats never spawning it at all.
- */
-constexpr std::uint64_t kMaximumHoldMs = 30'000;
-
 using SpawnGate = bool(__fastcall*)(std::int32_t) noexcept;
 
 hooking::detour::Handle g_handle{};
@@ -50,12 +43,14 @@ __declspec(noinline) bool __fastcall spawn_gate(std::int32_t datum) noexcept {
     observe_world_step();
     const state::activity::WorldPhase phase = state::activity::world_phase();
     const bool transitioning = phase == state::activity::WorldPhase::transitioning;
-    const bool gaveUp = transitioning && state::activity::world_transition_age() >= kMaximumHoldMs;
-    const bool loading = transitioning && !gaveUp && core::settings::get().client.holdSpawn;
-    // The release runs once the load is over, and also when the hold gave up on kMaximumHoldMs
-    // instead of on arrival. That second case spawns with the fade still up, and nothing polls
-    // this gate after, so a release put off past here never runs.
-    if (phase == state::activity::WorldPhase::arrived || gaveUp) {
+    // Zero unless a load is running.
+    const std::uint64_t age = state::activity::world_transition_age();
+    const core::settings::client::Settings& client = core::settings::get().client;
+    const bool gaveUp = age >= client.spawnHoldMs;
+    const bool loading = transitioning && !gaveUp && client.holdSpawn;
+    // Release only on arrival. The step-37 exit re-arms the fade unless one is already up, and
+    // nothing polls this gate after the spawn, so an early release leaves a fade nobody clears.
+    if (phase == state::activity::WorldPhase::arrived) {
         release_world_fade();
     }
     return allowed && loading ? kHeld : allowed;

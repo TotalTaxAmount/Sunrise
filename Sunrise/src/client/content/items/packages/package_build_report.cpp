@@ -27,7 +27,7 @@ void report_detail_failure(std::size_t slot, std::uint16_t definitionIndex) noex
     }
 }
 
-/** @param count Ability bucket rows the pass built, one per subclass and movement selection. */
+/** @param count Ability bucket rows the pass built, one per subclass and ability selection. */
 void report_ability_count(std::size_t count) noexcept {
     std::array<char, 96> line{};
     const int written =

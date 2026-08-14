@@ -49,12 +49,6 @@ struct Lists {
     std::size_t spawnHidden{};
     /** Rows whose package this destination does not load, which are shown and marked. */
     std::size_t spawnForeign{};
-    /**
-     * What to send when no spawn set is chosen on this destination.
-     * `default` where the map declares one, the absent hash where it does not. Forcing `default`
-     * onto a map without one makes the filtered search find nothing.
-     */
-    std::uint32_t spawnFallback{};
 };
 
 /** @return Process-lifetime picker rows, which no other module reads. */

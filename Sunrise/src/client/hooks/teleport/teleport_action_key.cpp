@@ -1,10 +1,7 @@
 /**
- * Turns an authored action binding into the Windows key the game will be asked about.
- *
- * A binding holds no virtual key. It holds an index into the game's own 105-entry key table, which
- * the per-frame scan reads through two image tables: a virtual key per index, and a scan code used
- * instead when that byte is the absent marker. Both are read here so an injected press matches
- * whatever the player bound, on any keyboard layout.
+ * Turns an authored binding into the Windows key the game is asked about.
+ * A binding holds an input code, not a virtual key. Its low byte indexes the game's 105-entry key
+ * table, which gives a virtual key, or a scan code to map when that byte is the absent marker.
  */
 
 #include <Windows.h>
@@ -39,6 +36,8 @@ constexpr std::array<std::byte, 5> kScanCodeLoad{
 constexpr std::size_t kSearchBytes = 0x140;
 /** Both tables carry one byte per supported key index. */
 constexpr std::size_t kKeyTableCount = 105;
+/** A binding half carries its key code in the low byte and its modifiers above it. */
+constexpr std::uint16_t kKeyCodeMask = 0x00FF;
 /** The table byte meaning the index resolves through its scan code instead. */
 constexpr std::uint8_t kAbsentVirtualKey = 0xFF;
 
@@ -89,8 +88,10 @@ void clear_action_keys() noexcept {
     g_scanCodes = nullptr;
 }
 
-/** Turns one authored binding index into the virtual key the scan will read. */
-std::uint32_t action_key(std::uint16_t index) noexcept {
+/** Turns one authored binding into the virtual key the scan will read. */
+std::uint32_t action_key(std::uint16_t binding) noexcept {
+    // The key code is the low byte. The bits above it are modifiers, which the tables do not index.
+    const std::uint16_t index = binding & kKeyCodeMask;
     if (g_virtualKeys == nullptr || g_scanCodes == nullptr || index >= kKeyTableCount) {
         return 0;
     }

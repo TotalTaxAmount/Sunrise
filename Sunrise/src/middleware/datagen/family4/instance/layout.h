@@ -80,13 +80,21 @@ struct OrdinarySocket {
     std::array<std::uint32_t, kSocketAuxiliaryHashCount> auxiliaryHashes{};
 };
 
-/** 12 ordinary sockets followed by their 5 replicated state masks. */
+/**
+ * 12 ordinary sockets followed by their 5 replicated state masks.
+ * A plug source passes only when its set mask holds the socket bit and its clear mask does not.
+ */
 struct OrdinarySocketBlock {
     std::array<OrdinarySocket, kOrdinarySocketCapacity> sockets{};
+    /** Set to pass a plug read from this instance's own socket lanes. */
     std::uint32_t activeMask{};
+    /** Set to pass a plug read from the item definition's declared socket block. */
     std::uint32_t definitionUnlockMask{};
+    /** Clear to pass a plug read from this instance's own socket lanes. */
     std::uint32_t blockedMask{};
+    /** Clear to pass a plug read from the item definition's declared socket block. */
     std::uint32_t expressionUnlockMask{};
+    /** The client ANDs this into `activeMask`, so a zero blanks every socket's state. */
     std::uint32_t gateMask{};
 };
 

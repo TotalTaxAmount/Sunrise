@@ -9,6 +9,7 @@
 #include "../../middleware/web_service/messages/opcode501_codec.h"
 #include "../../middleware/web_service/messages/opcode503.h"
 #include "../../middleware/web_service/messages/opcode504.h"
+#include "../../middleware/web_service/messages/opcode601/opcode601_codec.h"
 #include "../../middleware/web_service/web_service_envelope.h"
 #include "../../state/account/account_state.h"
 #include "../../state/runtime/runtime.h"
@@ -172,6 +173,12 @@ bool consume(std::span<const std::byte> request,
             state::account::selected_character_soid(state::account_snapshot());
         return middleware::web_service::messages::opcode501::encode_response(
                    message, characterSoid, response, written)
+               || encode_echo(message, response, written);
+    }
+
+    if (message.opcode == middleware::web_service::messages::opcode601::kOpcode) {
+        return middleware::web_service::messages::opcode601::encode_response(
+                   message, response, written)
                || encode_echo(message, response, written);
     }
 

@@ -6,9 +6,18 @@ namespace {
 
 namespace buckets = state::build_data::abilities;
 
+/** @param character Authored character. @return Its 5 selected socket entries. */
+[[nodiscard]] buckets::Selection selection_of(const state::CharacterState& character) noexcept {
+    return {character.movementAbilityEntry,
+            character.grenadeAbilityEntry,
+            character.superAbilityEntry,
+            character.meleeAbilityEntry,
+            character.classAbilityEntry};
+}
+
 } // namespace
 
-/** Fills the 12 ability buckets from the character's subclass and movement pick. */
+/** Fills the 12 ability buckets from the character's subclass and ability picks. */
 bool apply_ability_buckets(const state::CharacterState& character,
                            const family4::loadout::ResolvedInstances& instances,
                            layout::Appearance& appearance) noexcept {
@@ -21,7 +30,7 @@ bool apply_ability_buckets(const state::CharacterState& character,
         if (!state::build_data::find_configured_item_detail(
                 instances.items[index].instance.baseDefinitionIndex, detail)
             || !state::build_data::find_ability_buckets(
-                detail.socketEntryListIndex, character.movementAbilityEntry, published)) {
+                detail.socketEntryListIndex, selection_of(character), published)) {
             return false;
         }
         for (std::size_t bucket = 0; bucket < appearance.abilityBuckets.size(); ++bucket) {

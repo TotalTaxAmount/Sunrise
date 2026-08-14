@@ -124,8 +124,8 @@ prepare_allocation(const request_selection::ActivityManagerSelectionResult& pars
                          core::log::Level::warn,
                          "ev=bap svc=6 stage=package result=fallback");
     }
-    // Neither case carries a descriptor to rewrite, so a forced destination there sends the
-    // minimal one. The State fallback still stands when the switch is off.
+    // Neither case captures a descriptor, so a forced destination there sends the minimal one.
+    // The State fallback still stands when the switch is off.
     if (!hasCopy || !source.hasPackageName) {
         state::activity::destination::DestinationSelection forced{};
         if (state::activity::forced::apply(forced)) {
@@ -156,16 +156,13 @@ prepare_allocation(const request_selection::ActivityManagerSelectionResult& pars
         && source.descriptorBitLength <= destination.descriptorBits.size() * CHAR_BIT) {
         destination.descriptorBits = source.descriptorBits;
         destination.descriptorBitLength = static_cast<std::uint16_t>(source.descriptorBitLength);
-        destination.descriptorNameBit = static_cast<std::uint16_t>(source.packageNameBit);
-        destination.hasDescriptorName = source.hasPackageName;
     }
     // The authored override is applied here, once, so every message built from this selection sees
     // the same arrival instead of each push working it out again.
     state::activity::defaults::ActivityDefaults defaults{};
     state::activity::defaults::snapshot(defaults);
     state::activity::defaults::apply_arrival_override(defaults, destination);
-    // The forced destination lands last, on top of the client's own descriptor, so it rewrites the
-    // name inside those bits instead of replacing them.
+    // Forced lands last and drops the captured descriptor, so name and activity index agree.
     if (state::activity::forced::apply(destination)) {
         report_forced(destination);
     }

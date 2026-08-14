@@ -30,7 +30,7 @@ void begin(Task task) noexcept;
 /**
  * Raises a task and reports whether the caller must let a frame pass before starting.
  * The presenting thread cannot wait for its own frame, so work on that thread raises the
- * overlay on one call and starts on a later one. A game that is not drawing never defers.
+ * overlay on one call and starts on a later one. Every deferral is bounded.
  * @param task Work that is about to start.
  * @return True while the overlay has not reached the screen yet.
  */

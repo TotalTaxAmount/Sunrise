@@ -20,8 +20,8 @@ struct Resources {
     bool dx11BackendInitialized{};
     bool inputInstalled{};
     bool inputVisible{};
-    bool resizeDeviceLost{};
-    std::size_t activeResizeCalls{};
+    bool surfaceChangeDeviceLost{};
+    std::size_t activeSurfaceChanges{};
 };
 
 extern SRWLOCK g_rendererLock;

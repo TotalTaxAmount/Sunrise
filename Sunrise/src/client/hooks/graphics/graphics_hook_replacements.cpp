@@ -79,11 +79,35 @@ __declspec(noinline) HRESULT STDMETHODCALLTYPE resize_buffers_body(IDXGISwapChai
     HRESULT result = DXGI_ERROR_INVALID_CALL;
     if (call != nullptr) {
         if (rendererEnabled) {
-            renderer::before_resize(swapChain);
+            renderer::before_surface_change(swapChain);
         }
         result = call(swapChain, bufferCount, width, height, format, flags);
         if (rendererEnabled) {
-            renderer::after_resize(swapChain, result);
+            renderer::after_surface_change(swapChain, result);
+        }
+    }
+    leave_hook_call();
+    return result;
+}
+
+/**
+ * Drops and rebuilds the selected render target around a mode change.
+ * The change recreates the back buffers, so our view must not hold one across it.
+ * @param swapChain SDK swap chain supplied by DXGI.
+ * @return Exact HRESULT returned by the original SDK method.
+ */
+__declspec(noinline) HRESULT STDMETHODCALLTYPE set_fullscreen_state_body(
+    IDXGISwapChain* swapChain, BOOL fullscreen, IDXGIOutput* target) noexcept {
+    const bool rendererEnabled = enter_hook_call();
+    const auto call = original<SetFullscreenState>(HookSlot::setFullscreenState);
+    HRESULT result = DXGI_ERROR_INVALID_CALL;
+    if (call != nullptr) {
+        if (rendererEnabled) {
+            renderer::before_surface_change(swapChain);
+        }
+        result = call(swapChain, fullscreen, target);
+        if (rendererEnabled) {
+            renderer::after_surface_change(swapChain, result);
         }
     }
     leave_hook_call();
@@ -94,7 +118,9 @@ __declspec(noinline) HRESULT STDMETHODCALLTYPE resize_buffers_body(IDXGISwapChai
 
 /** @return Direct internal-linkage bodies that cannot become linker thunks. */
 EntryPoints entry_points() noexcept {
-    return {reinterpret_cast<void*>(&present_body), reinterpret_cast<void*>(&resize_buffers_body)};
+    return {reinterpret_cast<void*>(&present_body),
+            reinterpret_cast<void*>(&resize_buffers_body),
+            reinterpret_cast<void*>(&set_fullscreen_state_body)};
 }
 
 /** @return Every unwind-backed body that can own an admitted replacement call. */
@@ -102,6 +128,7 @@ ProtectedEntries protected_entries() noexcept {
     return {
         hooking::detour::ProtectedCodeEntry{reinterpret_cast<void*>(&present_body)},
         hooking::detour::ProtectedCodeEntry{reinterpret_cast<void*>(&resize_buffers_body)},
+        hooking::detour::ProtectedCodeEntry{reinterpret_cast<void*>(&set_fullscreen_state_body)},
         hooking::detour::ProtectedCodeEntry{reinterpret_cast<void*>(&enter_hook_call)},
         hooking::detour::ProtectedCodeEntry{reinterpret_cast<void*>(&leave_hook_call)},
     };

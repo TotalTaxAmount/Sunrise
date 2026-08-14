@@ -100,6 +100,7 @@
     <ClCompile Include="src\core\settings\json_scalar.cpp" />
     <ClCompile Include="src\core\settings\json_structure.cpp" />
     <ClCompile Include="src\core\settings\settings_runtime.cpp" />
+    <ClCompile Include="src\core\settings\settings_upgrade.cpp" />
     <ClCompile Include="src\core\settings\client\client_settings_parser.cpp" />
     <ClCompile Include="src\core\settings\client\client_ui_settings_parser.cpp" />
     <ClCompile Include="src\core\settings\server\server_settings_parser.cpp" />
@@ -166,6 +167,7 @@
     <ClCompile Include="src\client\hooks\graphics\renderer\selection\graphics_swap_chain_selection.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_lifecycle.cpp" />
     <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_frame.cpp" />
+    <ClCompile Include="src\client\hooks\graphics\renderer\graphics_renderer_report.cpp" />
     <ClCompile Include="src\client\hooks\egress\dns\egress_dns_replacements.cpp" />
     <ClCompile Include="src\client\hooks\egress\resolver\egress_resolver_forward.cpp" />
     <ClCompile Include="src\client\hooks\egress\resolver\egress_resolver_reverse.cpp" />
@@ -340,6 +342,7 @@
     <ClCompile Include="src\state\activity\defaults\activity_defaults_snapshot.cpp" />
     <ClCompile Include="src\state\activity\defaults\activity_defaults_validation.cpp" />
     <ClCompile Include="src\state\activity\destination\activity_destination_snapshot.cpp" />
+    <ClCompile Include="src\state\activity\destination\activity_destination_spawn_binding.cpp" />
     <ClCompile Include="src\state\activity\destination\activity_destination_validation.cpp" />
     <ClCompile Include="src\state\activity\transactions\activity_session_prepare.cpp" />
     <ClCompile Include="src\state\activity\transactions\activity_session_commit.cpp" />
@@ -512,6 +515,8 @@
     <ClCompile Include="src\middleware\bap\activity_message\activity_join_result_encoder.cpp" />
     <ClCompile Include="src\middleware\bap\activity_message\activity_entity_slot_request_parser.cpp" />
     <ClCompile Include="src\middleware\bap\activity_message\activity_entity_slots_decoder.cpp" />
+    <ClCompile Include="src\middleware\bap\activity_message\activity_entity_authority_parser.cpp" />
+    <ClCompile Include="src\middleware\bap\activity_message\activity_incident_parser.cpp" />
     <ClCompile Include="src\middleware\bap\activity_message\activity_entity_slots_encoder.cpp" />
     <ClCompile Include="src\middleware\bap\certificate.cpp" />
     <ClCompile Include="src\middleware\bap\client_config\client_config_response.cpp" />
@@ -573,6 +578,7 @@
     <ClCompile Include="src\middleware\web_service\messages\opcode206_codec.cpp" />
     <ClCompile Include="src\middleware\web_service\messages\opcode501_codec.cpp" />
     <ClCompile Include="src\middleware\web_service\messages\opcode505\opcode505_codec.cpp" />
+    <ClCompile Include="src\middleware\web_service\messages\opcode601\opcode601_codec.cpp" />
     <ClCompile Include="src\core\settings\state_settings.cpp" />
     <ClCompile Include="src\middleware\secure_channel\envelope.cpp" />
     <ClCompile Include="src\middleware\secure_channel\encrypted_frame.cpp" />
@@ -676,6 +682,7 @@
     <ClInclude Include="src\client\hooks\graphics\input\input.h" />
     <ClInclude Include="src\client\hooks\graphics\renderer\renderer.h" />
     <ClInclude Include="src\client\hooks\graphics\renderer\state.h" />
+    <ClInclude Include="src\client\hooks\graphics\renderer\graphics_renderer_report.h" />
     <ClInclude Include="src\client\ui\runtime\client_ui_module_runtime.h" />
     <ClInclude Include="src\client\memory\current_process_memory.h" />
     <ClInclude Include="src\client\content\handles\layout.h" />
@@ -764,6 +771,7 @@
     <ClInclude Include="src\state\activity\forced\activity_forced_destination.h" />
     <ClInclude Include="src\state\activity\destination\activity_destination_snapshot.h" />
     <ClInclude Include="src\state\activity\destination\activity_destination_validation.h" />
+    <ClInclude Include="src\state\activity\destination\activity_destination_spawn_binding.h" />
     <ClInclude Include="src\state\activity\entity_slots\definition.h" />
     <ClInclude Include="src\state\activity\entity_slots\runtime.h" />
     <ClInclude Include="src\state\activity\entity_slots\transactions\internal.h" />
@@ -892,6 +900,8 @@
     <ClInclude Include="src\middleware\bap\activity_message\activity_join_result_encoder.h" />
     <ClInclude Include="src\middleware\bap\activity_message\activity_entity_slot_request_parser.h" />
     <ClInclude Include="src\middleware\bap\activity_message\entity_slots.h" />
+    <ClInclude Include="src\middleware\bap\activity_message\entity_authority.h" />
+    <ClInclude Include="src\middleware\bap\activity_message\incident.h" />
     <ClInclude Include="src\middleware\bap\certificate.h" />
     <ClInclude Include="src\middleware\bap\client_config\client_config_response.h" />
     <ClInclude Include="src\middleware\bap\family_subscription.h" />
@@ -942,6 +952,7 @@
     <ClInclude Include="src\middleware\web_service\messages\opcode206.h" />
     <ClInclude Include="src\middleware\web_service\messages\opcode501_codec.h" />
     <ClInclude Include="src\middleware\web_service\messages\opcode505\opcode505_codec.h" />
+    <ClInclude Include="src\middleware\web_service\messages\opcode601\opcode601_codec.h" />
     <ClInclude Include="src\middleware\datagen\family4\account\selection_patch\account_selection_patch_encoder.h" />
     <ClInclude Include="src\middleware\secure_channel\runtime.h" />
     <ClInclude Include="src\middleware\signon\response.h" />

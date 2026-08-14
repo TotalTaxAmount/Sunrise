@@ -1,5 +1,9 @@
 #include <array>
+#include <cstddef>
+#include <cstdio>
+#include <string_view>
 
+#include "../../../../core/logging/log.h"
 #include "../graphics_hook_replacements.h"
 
 namespace sunrise::client::hooks::graphics {
@@ -48,7 +52,53 @@ void release_probe(Probe& probe) noexcept {
 }
 
 /**
- * Creates one SDK swap chain: hardware first, the WARP fallback second.
+ * Levels down to the D3D11 floor. The vtable is the same at each, so the probe takes whatever
+ * the installed adapter supports.
+ */
+constexpr std::array kFeatureLevels{
+    D3D_FEATURE_LEVEL_11_0,
+    D3D_FEATURE_LEVEL_10_1,
+    D3D_FEATURE_LEVEL_10_0,
+    D3D_FEATURE_LEVEL_9_3,
+    D3D_FEATURE_LEVEL_9_2,
+    D3D_FEATURE_LEVEL_9_1,
+};
+
+/** One probe creation attempt, named for the log line it produces. */
+struct Attempt {
+    D3D_DRIVER_TYPE driver{};
+    bool requestLevels{};
+    std::string_view name{};
+};
+
+/**
+ * Attempt order. The second asks for no level list, which some older drivers need.
+ * WARP is last because it is the slowest to create.
+ */
+constexpr std::array<Attempt, 3> kAttempts{
+    Attempt{D3D_DRIVER_TYPE_HARDWARE, true, "hardware"},
+    Attempt{D3D_DRIVER_TYPE_HARDWARE, false, "hardware_default"},
+    Attempt{D3D_DRIVER_TYPE_WARP, true, "warp"},
+};
+
+/** @param level Level the probe device reached. @param name Attempt that created it. */
+void report_probe(std::string_view name, D3D_FEATURE_LEVEL level) noexcept {
+    std::array<char, 96> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=graphics stage=probe result=ok driver=%.*s level=0x%04X",
+                                      static_cast<int>(name.size()),
+                                      name.data(),
+                                      static_cast<unsigned>(level));
+    if (written > 0) {
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::info,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
+}
+
+/**
+ * Creates one SDK swap chain, trying each attempt in order.
  * @param create SDK D3D11 factory entry from the system module.
  * @param probe Receives all temporary COM objects.
  * @return True when a classic IDXGISwapChain vtable is available.
@@ -68,6 +118,9 @@ void release_probe(Probe& probe) noexcept {
                                    GetModuleHandleW(nullptr),
                                    nullptr);
     if (probe.window == nullptr) {
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::warn,
+                         "ev=graphics stage=probe result=fail reason=window");
         return false;
     }
 
@@ -81,38 +134,33 @@ void release_probe(Probe& probe) noexcept {
     description.OutputWindow = probe.window;
     description.Windowed = TRUE;
     description.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    /** D3D11 baseline support is enough to expose the classic swap-chain ABI. */
-    constexpr std::array kFeatureLevels{D3D_FEATURE_LEVEL_11_0};
 
-    HRESULT result = create(nullptr,
-                            D3D_DRIVER_TYPE_HARDWARE,
-                            nullptr,
-                            0,
-                            kFeatureLevels.data(),
-                            static_cast<UINT>(kFeatureLevels.size()),
-                            D3D11_SDK_VERSION,
-                            &description,
-                            &probe.swapChain,
-                            &probe.device,
-                            nullptr,
-                            &probe.context);
-    if (FAILED(result)) {
+    for (const Attempt& attempt : kAttempts) {
+        D3D_FEATURE_LEVEL level{};
+        const HRESULT result =
+            create(nullptr,
+                   attempt.driver,
+                   nullptr,
+                   0,
+                   attempt.requestLevels ? kFeatureLevels.data() : nullptr,
+                   attempt.requestLevels ? static_cast<UINT>(kFeatureLevels.size()) : 0,
+                   D3D11_SDK_VERSION,
+                   &description,
+                   &probe.swapChain,
+                   &probe.device,
+                   &level,
+                   &probe.context);
+        if (SUCCEEDED(result) && probe.swapChain != nullptr && probe.device != nullptr
+            && probe.context != nullptr) {
+            report_probe(attempt.name, level);
+            return true;
+        }
         release_probe_com(probe);
-        result = create(nullptr,
-                        D3D_DRIVER_TYPE_WARP,
-                        nullptr,
-                        0,
-                        kFeatureLevels.data(),
-                        static_cast<UINT>(kFeatureLevels.size()),
-                        D3D11_SDK_VERSION,
-                        &description,
-                        &probe.swapChain,
-                        &probe.device,
-                        nullptr,
-                        &probe.context);
     }
-    return SUCCEEDED(result) && probe.swapChain != nullptr && probe.device != nullptr
-           && probe.context != nullptr;
+    core::log::write(core::log::Channel::client,
+                     core::log::Level::warn,
+                     "ev=graphics stage=probe result=fail reason=device");
+    return false;
 }
 
 } // namespace
@@ -145,6 +193,9 @@ bool resolve(Targets& output) noexcept {
         if (dxgiModule != nullptr) {
             FreeLibrary(dxgiModule);
         }
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::warn,
+                         "ev=graphics stage=probe result=fail reason=module");
         return false;
     }
 
@@ -161,17 +212,24 @@ bool resolve(Targets& output) noexcept {
     void** methods = *reinterpret_cast<void***>(probe.swapChain);
     void* present = methods[kPresentMethodIndex];
     void* resizeBuffers = methods[kResizeBuffersMethodIndex];
+    void* setFullscreenState = methods[kSetFullscreenStateMethodIndex];
+    // Distinct entries prove the slots were read from a real vtable, not from a shared thunk.
     const bool valid = executable_image_target(present, dxgiModule)
                        && executable_image_target(resizeBuffers, dxgiModule)
-                       && present != resizeBuffers;
+                       && executable_image_target(setFullscreenState, dxgiModule)
+                       && present != resizeBuffers && present != setFullscreenState
+                       && resizeBuffers != setFullscreenState;
     release_probe(probe);
     if (!valid) {
         FreeLibrary(d3d11Module);
         FreeLibrary(dxgiModule);
+        core::log::write(core::log::Channel::client,
+                         core::log::Level::warn,
+                         "ev=graphics stage=probe result=fail reason=vtable");
         return false;
     }
 
-    output = Targets{present, resizeBuffers, d3d11Module, dxgiModule};
+    output = Targets{present, resizeBuffers, setFullscreenState, d3d11Module, dxgiModule};
     return true;
 }
 

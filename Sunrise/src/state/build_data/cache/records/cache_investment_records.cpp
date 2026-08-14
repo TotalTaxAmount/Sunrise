@@ -12,7 +12,11 @@ constexpr unsigned int kReservedFieldValue = 0;
 bool encode(const abilities::Definition& value, AbilityBucketRecord& record) noexcept {
     record = {};
     record.socketEntryListIndex = value.socketEntryListIndex;
-    record.movementEntry = value.movementEntry;
+    record.movementEntry = value.selection.movementEntry;
+    record.grenadeEntry = value.selection.grenadeEntry;
+    record.superEntry = value.selection.superEntry;
+    record.meleeEntry = value.selection.meleeEntry;
+    record.classEntry = value.selection.classEntry;
     record.overflowCount = value.overflowCount;
     record.overflow = value.overflow;
     for (std::size_t bucket = 0; bucket < abilities::kBucketCapacity; ++bucket) {
@@ -33,7 +37,11 @@ bool decode(const AbilityBucketRecord& record, abilities::Definition& value) noe
         return false;
     }
     value.socketEntryListIndex = record.socketEntryListIndex;
-    value.movementEntry = record.movementEntry;
+    value.selection.movementEntry = record.movementEntry;
+    value.selection.grenadeEntry = record.grenadeEntry;
+    value.selection.superEntry = record.superEntry;
+    value.selection.meleeEntry = record.meleeEntry;
+    value.selection.classEntry = record.classEntry;
     value.overflowCount = record.overflowCount;
     value.overflow = record.overflow;
     for (std::size_t bucket = 0; bucket < abilities::kBucketCapacity; ++bucket) {

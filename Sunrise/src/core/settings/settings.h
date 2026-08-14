@@ -16,9 +16,9 @@ namespace sunrise::core::settings {
 /**
  * Layout version of the settings file this build writes and expects.
  * Raise it when a key is renamed, removed, or changes meaning. Adding a key needs no raise,
- * because a missing key already takes its default.
+ * because a missing key already takes its default. An older file is upgraded in place at load.
  */
-inline constexpr std::uint32_t kSettingsVersion = 2;
+inline constexpr std::uint32_t kSettingsVersion = 3;
 
 /** Parsed read-only process settings. */
 struct Settings {

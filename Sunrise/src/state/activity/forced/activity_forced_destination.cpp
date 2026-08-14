@@ -2,56 +2,11 @@
 
 #include <Windows.h>
 
-#include <algorithm>
+#include <cstddef>
 
 #include "../../runtime/storage/internal.h"
 
 namespace sunrise::state::activity::forced {
-namespace {
-
-/** Bits in one byte, the step size of the descriptor's storage. */
-constexpr std::size_t kBitsPerByte = 8;
-/** The top bit of a byte, where every packed field starts. */
-constexpr unsigned kHighBit = 0x80;
-/** Every package-name element is one biased byte. */
-constexpr std::uint8_t kNameElementBias = 0x80;
-
-/**
- * Rewrites the package name inside one captured descriptor.
- * The field is a fixed 40 elements, so the descriptor keeps its length and every field
- * around the name keeps its bits.
- * @param selection Destination holding the captured descriptor.
- * @param name Forced package name.
- * @param length Bytes of that name.
- * @return True when the name field is inside the captured bits and was rewritten.
- */
-[[nodiscard]] bool
-rewrite_descriptor_name(destination::DestinationSelection& selection,
-                        const std::array<char, destination::kPackageNameCapacity>& name,
-                        std::size_t length) noexcept {
-    const std::size_t fieldBits = destination::kPackageNameCapacity * kBitsPerByte;
-    if (!selection.hasDescriptorName || selection.descriptorBitLength == 0
-        || selection.descriptorNameBit + fieldBits > selection.descriptorBitLength) {
-        return false;
-    }
-    for (std::size_t element = 0; element < destination::kPackageNameCapacity; ++element) {
-        // The field is fixed width, so every element past the name is written as a biased zero.
-        const auto character =
-            element < length ? static_cast<std::uint8_t>(name[element]) : std::uint8_t{};
-        const auto encoded = static_cast<unsigned>(character + kNameElementBias);
-        for (std::size_t bit = 0; bit < kBitsPerByte; ++bit) {
-            const std::size_t at = selection.descriptorNameBit + (element * kBitsPerByte) + bit;
-            std::byte& target = selection.descriptorBits[at / kBitsPerByte];
-            const unsigned mask = kHighBit >> (at % kBitsPerByte);
-            const bool set = (encoded >> (kBitsPerByte - 1 - bit) & 1U) != 0;
-            target = static_cast<std::byte>(set ? static_cast<unsigned>(target) | mask
-                                                : static_cast<unsigned>(target) & ~mask);
-        }
-    }
-    return true;
-}
-
-} // namespace
 
 /** Replaces the forced destination. */
 bool publish(const ForcedDestination& value) noexcept {
@@ -107,18 +62,14 @@ bool apply(destination::DestinationSelection& selection) noexcept {
     selection.hasArrivalBubbleOverride = true;
     selection.sliceSetOverride = value.sliceSet;
     selection.hasSliceSetOverride = true;
-    // With no set chosen the destination's own fallback stands: `default` where the map has one,
-    // and the absent hash where it does not, which leaves the Client its loaded-world search.
-    selection.spawnSetOverride = value.hasSpawnSetHash ? value.spawnSetHash : value.spawnFallback;
+    // With no set chosen the absent hash goes out, so the Client searches the loaded world itself.
+    // A map-wide set is not proof that the arrival bubble holds one of its points.
+    selection.spawnSetOverride = value.hasSpawnSetHash ? value.spawnSetHash : kAbsentSpawnSetHash;
     selection.hasSpawnSetOverride = true;
-    // Only the name inside the descriptor is rewritten. Re-encoding a small one drops the fields
-    // with no known name, which leaves the Client's waiting overlay on screen.
-    if (!rewrite_descriptor_name(selection, value.packageName, value.packageNameLength)) {
-        selection.descriptorBits = {};
-        selection.descriptorBitLength = 0;
-        selection.descriptorNameBit = 0;
-        selection.hasDescriptorName = false;
-    }
+    // The captured descriptor is dropped, not patched: its activity index names what the Client
+    // picked, and a forced name beside a picked index starts the wrong activity with no spawn.
+    selection.descriptorBits = {};
+    selection.descriptorBitLength = 0;
     return true;
 }
 

@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <array>
 
 #include "../../../../middleware/content/packages/tables/ability_pool_reader.h"
@@ -14,13 +13,12 @@ namespace pool = middleware::content::packages::tables::abilities;
 namespace domain = state::build_data::abilities;
 
 /**
- * Socket-entry-list entries the character sheet's summary selects.
- * They are sprint, class ability, movement, grenade, super and melee. Only movement varies, and
- * the character's authored selection replaces this placeholder before the walk runs.
+ * Socket entry of the sprint ability, the one entry the character cannot choose.
+ * The other five come from the character's own selection.
  */
-constexpr std::uint8_t kSummaryEntries[]{1, 2, 4, 7, 10, 11};
-/** Position of the movement entry inside the summary selection. */
-constexpr std::size_t kMovementSummarySlot = 2;
+constexpr std::uint8_t kSprintEntry = 1;
+/** Number of socket entries the character sheet's summary selects. */
+constexpr std::size_t kSummaryEntryCount = 6;
 /** Entry kind of the super, which stays active without a plug source of its own. */
 constexpr std::uint8_t kSuperKind = 34;
 /** A selector chain longer than this is a cycle, not a chain. */
@@ -33,8 +31,24 @@ struct Walk {
     std::vector<std::byte>* blob{};
     std::array<pool::Entry, pool::kEntryCapacity> entries{};
     std::size_t entryCount{};
-    std::array<std::uint8_t, std::size(kSummaryEntries)> selected{};
+    std::array<std::uint8_t, kSummaryEntryCount> selected{};
 };
+
+/**
+ * Orders one character's selection the way the walk reads it.
+ * When two entries share a group the first one claims it, so this order is fixed.
+ * @param selection The character's 5 selected socket entries.
+ * @return The 6 summary entries in claim order.
+ */
+[[nodiscard]] std::array<std::uint8_t, kSummaryEntryCount>
+summary_entries(const domain::Selection& selection) noexcept {
+    return {kSprintEntry,
+            selection.classEntry,
+            selection.movementEntry,
+            selection.grenadeEntry,
+            selection.superEntry,
+            selection.meleeEntry};
+}
 
 /**
  * Reads one entry's pool records.
@@ -175,12 +189,12 @@ void file_hash(const pool::PoolRecord& record, domain::Definition& output) noexc
 
 } // namespace
 
-/** Builds the ability buckets one subclass publishes under one movement selection. */
+/** Builds the ability buckets one subclass publishes under one ability selection. */
 bool build_ability_buckets(const reader::Source& source,
                            reader::Scratch& scratch,
                            std::span<const std::byte> listDefinition,
                            std::vector<std::byte>& blob,
-                           std::uint8_t movementEntry,
+                           const state::build_data::abilities::Selection& selection,
                            state::build_data::abilities::Definition& output) noexcept {
     Walk walk{};
     walk.source = &source;
@@ -190,8 +204,7 @@ bool build_ability_buckets(const reader::Source& source,
     if (walk.entryCount == 0) {
         return false;
     }
-    std::copy(std::begin(kSummaryEntries), std::end(kSummaryEntries), walk.selected.begin());
-    walk.selected[kMovementSummarySlot] = movementEntry;
+    walk.selected = summary_entries(selection);
 
     for (domain::Bucket& bucket : output.buckets) {
         bucket = {};

@@ -178,11 +178,9 @@ bool Parser::character(state::CharacterState& output) noexcept {
                 return false;
             }
         } else if (key == "movement_ability") {
-            std::uint64_t value = 0;
-            if (!unsigned_integer(value) || value > state::kMaximumMovementAbilityEntry) {
+            if (!ability_entry(output.movementAbilityEntry)) {
                 return false;
             }
-            output.movementAbilityEntry = static_cast<std::uint8_t>(value);
         } else if (key == "grenade_ability") {
             if (!ability_entry(output.grenadeAbilityEntry)) {
                 return false;

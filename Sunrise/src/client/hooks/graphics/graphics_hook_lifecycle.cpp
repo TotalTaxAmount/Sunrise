@@ -57,6 +57,8 @@ bool install() noexcept {
                               entryPoints[static_cast<std::size_t>(HookSlot::present)]},
         hooking::detour::Spec{g_targets.resizeBuffers,
                               entryPoints[static_cast<std::size_t>(HookSlot::resizeBuffers)]},
+        hooking::detour::Spec{g_targets.setFullscreenState,
+                              entryPoints[static_cast<std::size_t>(HookSlot::setFullscreenState)]},
     };
     for (std::size_t index = 0; index < specs.size(); ++index) {
         g_targetEntries[index] = specs[index].target;

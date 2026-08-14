@@ -13,6 +13,7 @@
 #include "../../../../core/ui/scaling/dpi/ui_dpi_scaling.h"
 #include "../../../../core/ui/theme/sunrise_ui_theme.h"
 #include "../input/input.h"
+#include "graphics_renderer_report.h"
 #include "state.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND window,
@@ -128,6 +129,7 @@ void render_frame_locked() noexcept {
         // Style and text scale change together, before the backend sets up the frame.
         core::ui::theme::apply();
         if (!core::ui::fonts::runtime::apply_scale(core::ui::scaling::dpi::current())) {
+            report::note(report::Stage::frame, report::Reason::fontScale);
             (void)shutdown_locked();
             return;
         }

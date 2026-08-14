@@ -46,8 +46,18 @@ enum class RequestService : std::uint16_t {
     start = 30,
     /** Requests the current server-to-client user-message response. */
     userMessage = 32,
+    /** Requests the skill records the Client keeps in its skill manager. */
+    skill = 34,
+    /** Carries the unnamed request paired with response service 37. */
+    request36 = 36,
+    /** Carries the unnamed request paired with response service 39. */
+    request38 = 38,
+    /** Carries the unnamed request paired with response service 41. */
+    request40 = 40,
     /** Carries one of the 8 matchmaking request variants. Body field two picks it. */
     matchmaking = 42,
+    /** Carries the unnamed request paired with response service 49. */
+    request48 = 48,
     /** Carries a clan protobuf request that the minimal liveness route leaves unparsed. */
     clan = 44,
     /** Registers the client as a notification subscriber. */
@@ -90,8 +100,18 @@ enum class ResponseService : std::uint16_t {
     start = 31,
     /** Returns the current user-message fields. */
     userMessage = 33,
+    /** Returns an empty skill record list, which is a count of zero. */
+    skill = 35,
+    /** Acknowledges service 36 with an empty status-200 body. */
+    response37 = 37,
+    /** Acknowledges service 38 with an empty status-200 body. */
+    response39 = 39,
+    /** Acknowledges service 40 with an empty status-200 body. */
+    response41 = 41,
     /** Returns the request-kind-specific matchmaking result. */
     matchmaking = 43,
+    /** Acknowledges service 48 with an empty status-200 body. */
+    response49 = 49,
     /** Returns schema-valid empty clan data with status 200. */
     clan = 45,
     /** Acknowledges notification subscriber registration. */

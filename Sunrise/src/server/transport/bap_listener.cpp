@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "../../core/logging/log.h"
+#include "../../core/settings/settings.h"
 #include "internal.h"
 
 namespace sunrise::server::transport {
@@ -193,15 +194,23 @@ bool initialize_on_port(std::uint16_t port) noexcept {
     }
     g_listener.active = true;
     g_listener.nextPollTick = 0;
-    core::log::write(
-        core::log::Channel::server, core::log::Level::info, "ev=transport stage=listen result=ok");
+    std::array<char, 64> line{};
+    const int written = std::snprintf(line.data(),
+                                      line.size(),
+                                      "ev=transport stage=listen result=ok port=%u",
+                                      static_cast<unsigned>(port));
+    if (written > 0) {
+        core::log::write(core::log::Channel::server,
+                         core::log::Level::info,
+                         {line.data(), static_cast<std::size_t>(written)});
+    }
     ReleaseSRWLockExclusive(&g_listenerLock);
     return true;
 }
 
-/** Starts the nonblocking listener on the Client's fixed BAP port. */
+/** Starts the nonblocking listener on the configured BAP port. */
 bool initialize() noexcept {
-    return initialize_on_port(kBapPort);
+    return initialize_on_port(core::settings::get().server.bapPort);
 }
 
 /** Runs one bounded listener slice on the caller thread. @param now Monotonic tick count. */

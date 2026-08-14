@@ -19,25 +19,31 @@ using Present = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 /** SDK ABI for IDXGISwapChain::ResizeBuffers. */
 using ResizeBuffers =
     HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+/** SDK ABI for IDXGISwapChain::SetFullscreenState. */
+using SetFullscreenState = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL, IDXGIOutput*);
 
 /** Stable slots shared by discovery targets and Detours handles. */
 enum class HookSlot : std::size_t {
     present,
     resizeBuffers,
+    setFullscreenState,
     count,
 };
 
-/** Two SDK methods form the complete graphics hook transaction. */
+/** Every SDK method that forms the graphics hook transaction. */
 inline constexpr std::size_t kHandleCount = static_cast<std::size_t>(HookSlot::count);
 /** IDXGISwapChain inherits 7 methods before its own Present. */
 inline constexpr std::size_t kPresentMethodIndex = 8;
 /** ResizeBuffers comes 5 IDXGISwapChain methods after Present. */
 inline constexpr std::size_t kResizeBuffersMethodIndex = 13;
+/** SetFullscreenState comes 2 IDXGISwapChain methods after Present. */
+inline constexpr std::size_t kSetFullscreenStateMethodIndex = 10;
 
 /** System methods and module references kept through detachment. */
 struct Targets {
     void* present{};
     void* resizeBuffers{};
+    void* setFullscreenState{};
     HMODULE d3d11Module{};
     HMODULE dxgiModule{};
 };
@@ -98,8 +104,8 @@ void release(Targets& targets) noexcept;
 
 namespace replacement {
 
-/** Present, ResizeBuffers, ingress and egress: the bodies a suspended call can sit in. */
-inline constexpr std::size_t kProtectedEntryCount = 4;
+/** Every replacement body, plus ingress and egress: the bodies a suspended call can sit in. */
+inline constexpr std::size_t kProtectedEntryCount = 5;
 
 /** Direct replacement bodies indexed by HookSlot. */
 using EntryPoints = std::array<void*, kHandleCount>;

@@ -4,9 +4,6 @@
 
 namespace sunrise::server::transport {
 
-/** The Client maps the primary BAP endpoint to this loopback port. */
-inline constexpr std::uint16_t kBapPort = 30974;
-
 /** Starts the nonblocking loopback BAP listener. @return True when the listener is bound. */
 [[nodiscard]] bool initialize() noexcept;
 

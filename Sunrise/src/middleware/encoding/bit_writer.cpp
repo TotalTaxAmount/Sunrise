@@ -18,12 +18,23 @@ Writer::Writer(std::span<std::byte> output) noexcept : output_(output) {
     std::fill(output_.begin(), output_.end(), std::byte{});
 }
 
+/** Builds a writer that only counts bits. */
+Writer Writer::measuring() noexcept {
+    Writer writer{{}};
+    writer.measuring_ = true;
+    return writer;
+}
+
 /** Writes one bounded unsigned field without allocation or byte alignment. */
 bool Writer::write(std::uint64_t value, std::uint8_t width) noexcept {
     const std::size_t capacity = output_.size() * kBitsPerByte;
-    if (failed_ || width > kMaximumWriteWidth || width > capacity - bitPosition_) {
+    if (failed_ || width > kMaximumWriteWidth || (!measuring_ && width > capacity - bitPosition_)) {
         failed_ = true;
         return false;
+    }
+    if (measuring_) {
+        bitPosition_ += width;
+        return true;
     }
     for (std::uint8_t index = 0; index < width; ++index) {
         const std::uint8_t sourceShift = static_cast<std::uint8_t>(width - index - 1);

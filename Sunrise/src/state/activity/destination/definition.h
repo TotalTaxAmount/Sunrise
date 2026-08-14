@@ -80,14 +80,6 @@ struct DestinationSelection final {
     std::array<std::byte, kDescriptorCapacity> descriptorBits{};
     /** Meaningful bits in descriptorBits, or zero when no descriptor was captured. */
     std::uint16_t descriptorBitLength{};
-    /**
-     * Bit offset of the name field inside descriptorBits, valid with a nonzero length.
-     * Forcing a destination rewrites the name here instead of re-encoding the descriptor. The
-     * whole descriptor is what the Client's own ready state needs.
-     */
-    std::uint16_t descriptorNameBit{};
-    /** True only when the captured descriptor carried a name field to rewrite. */
-    bool hasDescriptorName{};
 };
 
 /**

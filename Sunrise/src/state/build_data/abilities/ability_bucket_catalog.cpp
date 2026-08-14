@@ -11,7 +11,7 @@ Table<Definition, kDefinitionCapacity> g_definitions;
 /** @return True when both rows name the same subclass selection. */
 [[nodiscard]] bool same_key(const Definition& left, const Definition& right) noexcept {
     return left.socketEntryListIndex == right.socketEntryListIndex
-           && left.movementEntry == right.movementEntry;
+           && left.selection == right.selection;
 }
 
 } // namespace
@@ -22,7 +22,7 @@ void clear() noexcept {
     g_definitions.clear();
 }
 
-/** Checks that no two rows share a subclass and movement selection. */
+/** Checks that no two rows share a subclass and ability selection. */
 bool valid(std::span<const Definition> definitions) noexcept {
     if (definitions.size() > kDefinitionCapacity) {
         return false;
@@ -46,12 +46,12 @@ bool replace(std::span<const Definition> definitions) noexcept {
     return g_definitions.replace(definitions);
 }
 
-/** Finds the buckets one subclass publishes under one movement selection. */
+/** Finds the buckets one subclass publishes under one ability selection. */
 bool find(std::uint16_t socketEntryListIndex,
-          std::uint8_t movementEntry,
+          const Selection& selection,
           Definition& definition) noexcept {
     definition = {};
-    const Definition wanted{socketEntryListIndex, movementEntry};
+    const Definition wanted{socketEntryListIndex, selection};
     const Lock::Shared guard(g_lock);
     for (const Definition& row : g_definitions.rows()) {
         if (same_key(row, wanted)) {

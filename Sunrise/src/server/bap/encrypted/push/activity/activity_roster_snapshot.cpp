@@ -6,6 +6,7 @@
 #include "../../../../../state/account/account_state.h"
 #include "../../../../../state/activity/defaults/activity_defaults_snapshot.h"
 #include "../../../../../state/activity/destination/activity_destination_snapshot.h"
+#include "../../../../../state/activity/destination/activity_destination_spawn_binding.h"
 #include "../../../../../state/activity/membership/activity_membership_query.h"
 #include "../../../../../state/build_data/runtime.h"
 #include "../../../../../state/runtime/runtime.h"
@@ -188,7 +189,7 @@ RosterOutcome build_roster_snapshot(Session& session,
     // The spawn override always names the destination's own arrival, never the player's position.
     snapshot.spawnSliceSet = sliceSet;
     snapshot.spawnSetHash =
-        state::activity::destination::resolve_spawn_set_hash(selection, fallback.spawnSetHash);
+        state::activity::destination::attachable_spawn_set_hash(selection, fallback.spawnSetHash);
     snapshot.hasSpawnOverride =
         snapshot.spawnSetHash != 0 && snapshot.spawnSetHash != message::kAbsentSpawnSetHash;
     snapshot.stateSequence = next_state_sequence(session, fold_groups(snapshot.roster), burst);

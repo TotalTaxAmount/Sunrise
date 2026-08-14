@@ -54,7 +54,7 @@ void apply_sentinels(layout::Appearance& appearance) noexcept;
                                 layout::Appearance& appearance) noexcept;
 
 /**
- * Fills the 12 ability buckets from the character's subclass and movement pick.
+ * Fills the 12 ability buckets from the character's subclass and ability picks.
  * @param character Validated authored character.
  * @param instances Resolved item instances belonging to that character.
  * @param appearance Appearance block receiving the buckets.

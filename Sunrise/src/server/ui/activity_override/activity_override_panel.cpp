@@ -29,7 +29,7 @@ constexpr char kUnset[] = "none";
 /** Preview shown by a picker whose list is empty. */
 constexpr char kEmptyList[] = "nothing to pick";
 /** Spawn row that names no set, which forces the default one. */
-constexpr char kDefaultSpawnRow[] = "none  (forces default)";
+constexpr char kDefaultSpawnRow[] = "none  (client picks)";
 /** Room for the longest status line this module builds. */
 constexpr std::size_t kStatusCapacity = 64;
 /** Widest picker list this module draws, so no list is silently cut short. */
@@ -112,7 +112,6 @@ void follow_destination(const forced::ForcedDestination& value, Lists& rows) noe
     value.hasSpawnSetHash = false;
     value.spawnSetHash = 0;
     follow_destination(value, rows);
-    value.spawnFallback = rows.spawnFallback;
     return true;
 }
 
@@ -205,13 +204,8 @@ void draw_status(const forced::ForcedDestination& value, const Lists& rows) noex
         ImGui::TextUnformatted("incomplete, select valid activity");
         return;
     }
-    if (value.hasSpawnSetHash) {
-        ImGui::TextUnformatted("active");
-    } else {
-        ImGui::TextUnformatted(value.spawnFallback == forced::kDefaultSpawnSetHash
-                                   ? "active, forcing the default spawn"
-                                   : "active");
-    }
+    ImGui::TextUnformatted(value.hasSpawnSetHash ? "active, forcing the chosen spawn set"
+                                                 : "active, the client picks its own spawn");
     if (rows.spawnUnavailable) {
         ImGui::TextDisabled("this destination's spawn sets could not be listed");
     }
@@ -255,9 +249,8 @@ void draw() noexcept {
         g_activityRow = kNoRow;
     }
 
-    core::ui::components::section::header(
-        "Activity override",
-        "Forces every load to redirect to these values.");
+    core::ui::components::section::header("Activity override",
+                                          "Forces every load to redirect to these values.");
 
     bool changed = core::ui::components::toggle::control("Enabled", value.enabled);
     ImGui::SameLine();

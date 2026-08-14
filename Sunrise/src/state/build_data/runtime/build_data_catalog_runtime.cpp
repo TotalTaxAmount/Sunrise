@@ -224,7 +224,7 @@ bool ability_buckets_ready() noexcept {
     return runtime::ability_buckets::ready();
 }
 
-/** Publishes the ability buckets every configured subclass and movement selection publishes. */
+/** Publishes the ability buckets every configured subclass and ability selection publishes. */
 bool publish_ability_buckets(std::span<const abilities::Definition> definitions) noexcept {
     runtime::persistence::Transaction transaction;
     if (!transaction.active() || !abilities::replace(definitions)) {
@@ -235,13 +235,12 @@ bool publish_ability_buckets(std::span<const abilities::Definition> definitions)
     return transaction.finish(true, rollback_ability_publication);
 }
 
-/** Finds the buckets one subclass publishes under one movement selection. */
+/** Finds the buckets one subclass publishes under one ability selection. */
 bool find_ability_buckets(std::uint16_t socketEntryListIndex,
-                          std::uint8_t movementEntry,
+                          const abilities::Selection& selection,
                           abilities::Definition& definition) noexcept {
     definition = {};
-    return ability_buckets_ready()
-           && abilities::find(socketEntryListIndex, movementEntry, definition);
+    return ability_buckets_ready() && abilities::find(socketEntryListIndex, selection, definition);
 }
 
 /** @return True when the installed investment constants are in State. */

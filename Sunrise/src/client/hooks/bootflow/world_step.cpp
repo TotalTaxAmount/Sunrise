@@ -20,7 +20,7 @@ constexpr std::string_view kStepSignatureText =
 /** Compiled pattern bytes of the signature text above. */
 constexpr auto kStepSignature = signature<signature_length(kStepSignatureText)>(kStepSignatureText);
 
-/** First step that loads the map with no player in it yet. Step names: RE/16 "The step table". */
+/** First step that loads the map with no player in it yet. */
 constexpr std::int32_t kActivityLoadFirst = 33;
 /** `activity:in_world`. The fade is armed by then, so a spawn now releases it. */
 constexpr std::int32_t kInWorld = 38;

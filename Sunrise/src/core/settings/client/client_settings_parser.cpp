@@ -14,6 +14,7 @@ bool Parser::client_settings(client::Settings& output) noexcept {
     bool hasForceJoinRequestReady = false;
     bool hasPinReplicatedRecord = false;
     bool hasHoldSpawn = false;
+    bool hasSpawnHoldMs = false;
     if (consume('}')) {
         return true;
     }
@@ -52,6 +53,14 @@ bool Parser::client_settings(client::Settings& output) noexcept {
                 return false;
             }
             hasHoldSpawn = true;
+        } else if (key == "spawn_hold_ms") {
+            std::uint64_t value = 0;
+            if (hasSpawnHoldMs || !unsigned_integer(value) || value == 0
+                || value > client::kMaximumSpawnHoldMs) {
+                return false;
+            }
+            candidate.spawnHoldMs = value;
+            hasSpawnHoldMs = true;
         } else if (!skip_value(0)) {
             return false;
         }

@@ -85,18 +85,13 @@ constexpr std::uint32_t kMaximumRegion = 0x7FFFFFFF;
     return encoded;
 }
 
-} // namespace
-
-/** Encodes one `sensor_auth_update` body. */
-bool encode_sensor_auth_update(const Snapshot& snapshot,
-                               std::span<std::byte> output,
-                               std::size_t& written) noexcept {
-    written = 0;
-    if (output.empty() || !valid(snapshot)) {
-        return false;
-    }
-
-    bits::Writer writer(output);
+/**
+ * Writes the whole body through one writer.
+ * @param writer Real or measuring writer positioned at the first bit.
+ * @param snapshot Message input.
+ * @return True when every field fit.
+ */
+[[nodiscard]] bool write_body(bits::Writer& writer, const Snapshot& snapshot) noexcept {
     // The hardwipe token is unchecked unless the client's `use_hardwipe_tokens` config is on.
     bool encoded = writer.write(0, kHardwipeWidth)
                    && writer.write(snapshot.patchEpoch.first, kEpochWidth)
@@ -116,10 +111,31 @@ bool encode_sensor_auth_update(const Snapshot& snapshot,
         encoded = write_phase_two(writer, snapshot);
     }
     // The entity-group loop end, then the trailing pair, which short-circuits to one bit.
-    encoded = encoded && writer.write(0, kPresenceWidth) && writer.write(0, kPresenceWidth);
+    return encoded && writer.write(0, kPresenceWidth) && writer.write(0, kPresenceWidth);
+}
 
+} // namespace
+
+/** Encodes one `sensor_auth_update` body. */
+bool encode_sensor_auth_update(const Snapshot& snapshot,
+                               std::span<std::byte> output,
+                               std::size_t& written) noexcept {
+    written = 0;
+    if (output.empty() || !valid(snapshot)) {
+        return false;
+    }
+
+    // Measure first. The writer clears and fills the caller's storage as it goes, so a body that
+    // does not fit would leave a partial one behind.
+    bits::Writer measure = bits::Writer::measuring();
+    std::size_t required = 0;
+    if (!write_body(measure, snapshot) || !measure.finish(required) || required > output.size()) {
+        return false;
+    }
+
+    bits::Writer writer(output);
     std::size_t produced = 0;
-    if (!encoded || !writer.finish(produced)) {
+    if (!write_body(writer, snapshot) || !writer.finish(produced) || produced != required) {
         return false;
     }
     written = produced;

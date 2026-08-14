@@ -49,6 +49,39 @@ void mix_value(std::uint64_t& hash, std::uint32_t value) noexcept {
     }
 }
 
+/**
+ * Mixes one item's socket policy and every authored plug lane.
+ * The extraction pass reads a detail row for each authored plug, so a changed plug must rebuild.
+ * @param hash Mutable 64-bit FNV-1a accumulator.
+ * @param sockets Authored socket policy and lanes.
+ */
+void mix_sockets(std::uint64_t& hash, const account::inventory::Sockets& sockets) noexcept {
+    mix_byte(hash, static_cast<std::uint8_t>(sockets.policy));
+    mix_byte(hash, static_cast<std::uint8_t>(sockets.plugCount));
+    for (std::size_t lane = 0; lane < sockets.plugCount && lane < sockets.plugs.size(); ++lane) {
+        if (!sockets.plugs[lane].has_value()) {
+            mix_byte(hash, kAbsentItemMarker);
+            continue;
+        }
+        mix_byte(hash, kPresentItemMarker);
+        mix_value(hash, *sockets.plugs[lane]);
+    }
+}
+
+/**
+ * Mixes one character's 5 selected subclass entries.
+ * The ability bucket rows are keyed by these, so a changed pick must rebuild.
+ * @param hash Mutable 64-bit FNV-1a accumulator.
+ * @param character Authored character.
+ */
+void mix_ability_selection(std::uint64_t& hash, const CharacterState& character) noexcept {
+    mix_byte(hash, character.movementAbilityEntry);
+    mix_byte(hash, character.grenadeAbilityEntry);
+    mix_byte(hash, character.superAbilityEntry);
+    mix_byte(hash, character.meleeAbilityEntry);
+    mix_byte(hash, character.classAbilityEntry);
+}
+
 } // namespace
 
 /** Builds a nonsecret cache identity from ordered authored equipment. */
@@ -57,16 +90,18 @@ std::uint64_t configured_hash(const AccountState& accountState) noexcept {
     mix_byte(hash, static_cast<std::uint8_t>(accountState.characterCount));
     for (std::size_t characterIndex = 0; characterIndex < accountState.characterCount;
          ++characterIndex) {
-        for (const std::optional<account::inventory::Item>& item :
-             accountState.characters[characterIndex].equipment.slots) {
+        const CharacterState& character = accountState.characters[characterIndex];
+        mix_ability_selection(hash, character);
+        for (const std::optional<account::inventory::Item>& item : character.equipment.slots) {
             if (!item.has_value()) {
                 mix_byte(hash, kAbsentItemMarker);
                 continue;
             }
             mix_byte(hash, kPresentItemMarker);
-            // SOIDs, quantity, plugs, selection, gates and secrets stay outside build identity.
+            // SOIDs, quantity, gates and secrets stay outside build identity.
             mix_value(hash, item->definitionHash);
             mix_value(hash, static_cast<std::uint32_t>(item->level));
+            mix_sockets(hash, item->sockets);
         }
     }
     return hash;

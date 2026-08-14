@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <span>
 #include <string_view>
 
@@ -80,13 +82,20 @@ namespace {
     return left.definitionIndex < right.definitionIndex;
 }
 
-/** @return Subclass order, then movement-selection order. */
+/** @return Subclass order, then selected-entry order, movement first. */
 [[nodiscard]] bool ability_less(const abilities::Definition& left,
                                 const abilities::Definition& right) noexcept {
     if (left.socketEntryListIndex != right.socketEntryListIndex) {
         return left.socketEntryListIndex < right.socketEntryListIndex;
     }
-    return left.movementEntry < right.movementEntry;
+    const auto key = [](const abilities::Selection& selection) noexcept {
+        return std::array<std::uint8_t, 5>{selection.movementEntry,
+                                           selection.grenadeEntry,
+                                           selection.superEntry,
+                                           selection.meleeEntry,
+                                           selection.classEntry};
+    };
+    return key(left.selection) < key(right.selection);
 }
 
 /** @return True when every row sorts strictly before the next, so no two are equal. */

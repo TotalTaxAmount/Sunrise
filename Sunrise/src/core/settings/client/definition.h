@@ -1,9 +1,16 @@
 #pragma once
 
+#include <cstdint>
+
 #include "../../ui/runtime/settings.h"
 #include "external/definition.h"
 
 namespace sunrise::core::settings::client {
+
+/** A load this long has stopped making progress, so the spawn stops waiting for it. */
+inline constexpr std::uint64_t kDefaultSpawnHoldMs = 30'000;
+/** A load past this is a hang, not a slow machine, and holding the spawn would never end. */
+inline constexpr std::uint64_t kMaximumSpawnHoldMs = 600'000;
 
 /** Read-only Client settings parsed by Core. */
 struct Settings {
@@ -34,6 +41,8 @@ struct Settings {
      * the only thing that can turn an allowed spawn into a refusal.
      */
     bool holdSpawn{true};
+    /** How long the spawn waits for a load. `hold_spawn` decides whether it waits at all. */
+    std::uint64_t spawnHoldMs{kDefaultSpawnHoldMs};
 };
 
 } // namespace sunrise::core::settings::client

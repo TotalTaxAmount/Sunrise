@@ -1,5 +1,6 @@
 #include <Windows.h>
 
+#include <array>
 #include <imgui_impl_dx11.h>
 #include <imgui_impl_win32.h>
 
@@ -8,6 +9,7 @@
 #include "../../cursor/runtime.h"
 #include "../../polled_input/runtime.h"
 #include "../input/input.h"
+#include "graphics_renderer_report.h"
 #include "state.h"
 
 namespace sunrise::client::hooks::graphics::renderer {
@@ -68,6 +70,44 @@ template <typename Interface> void release_com(Interface*& object) noexcept {
     }
 }
 
+/** One typeless back-buffer format and the view format that reads it. */
+struct ViewFormat {
+    DXGI_FORMAT stored{};
+    DXGI_FORMAT view{};
+};
+
+/** Every typeless format DXGI allows for a back buffer, with the view format for each. */
+constexpr std::array<ViewFormat, 6> kTypelessViewFormats{
+    ViewFormat{DXGI_FORMAT_R8G8B8A8_TYPELESS, DXGI_FORMAT_R8G8B8A8_UNORM},
+    ViewFormat{DXGI_FORMAT_B8G8R8A8_TYPELESS, DXGI_FORMAT_B8G8R8A8_UNORM},
+    ViewFormat{DXGI_FORMAT_B8G8R8X8_TYPELESS, DXGI_FORMAT_B8G8R8X8_UNORM},
+    ViewFormat{DXGI_FORMAT_R10G10B10A2_TYPELESS, DXGI_FORMAT_R10G10B10A2_UNORM},
+    ViewFormat{DXGI_FORMAT_R16G16B16A16_TYPELESS, DXGI_FORMAT_R16G16B16A16_FLOAT},
+    ViewFormat{DXGI_FORMAT_R32G32B32A32_TYPELESS, DXGI_FORMAT_R32G32B32A32_FLOAT},
+};
+
+/**
+ * Describes the view for a typeless back buffer, which has no format to infer.
+ * @param output Receives the description. Untouched for any other format.
+ * @return True when an explicit description was written.
+ */
+[[nodiscard]] bool describe_view(ID3D11Texture2D* backBuffer,
+                                 D3D11_RENDER_TARGET_VIEW_DESC& output) noexcept {
+    D3D11_TEXTURE2D_DESC texture{};
+    backBuffer->GetDesc(&texture);
+    for (const ViewFormat& candidate : kTypelessViewFormats) {
+        if (candidate.stored != texture.Format) {
+            continue;
+        }
+        output = {};
+        output.Format = candidate.view;
+        output.ViewDimension = texture.SampleDesc.Count > 1 ? D3D11_RTV_DIMENSION_TEXTURE2DMS
+                                                            : D3D11_RTV_DIMENSION_TEXTURE2D;
+        return true;
+    }
+    return false;
+}
+
 /**
  * Stops the started layers in reverse order, then frees all SDK resources.
  * @param resources Fully or partly started renderer resources.
@@ -125,26 +165,32 @@ template <typename Interface> void release_com(Interface*& object) noexcept {
 [[nodiscard]] bool initialize_locked(IDXGISwapChain* swapChain) noexcept {
     Resources staged;
     if (!selection::acquire(swapChain, staged)) {
+        // acquire reports its own step.
         return false;
     }
     if (!core::ui::layout::initialize()) {
         release_resources(staged);
+        report::note(report::Stage::init, report::Reason::layout);
         return false;
     }
     staged.layoutInitialized = true;
     if (!ImGui_ImplWin32_Init(staged.window)) {
+        report::note(report::Stage::init, report::Reason::win32Backend);
         return discard_staged(staged);
     }
     staged.win32BackendInitialized = true;
     if (!ImGui_ImplDX11_Init(staged.device, staged.context)) {
+        report::note(report::Stage::init, report::Reason::dx11Backend);
         return discard_staged(staged);
     }
     staged.dx11BackendInitialized = true;
     if (!input::install(staged.window)) {
+        report::note(report::Stage::init, report::Reason::windowInput);
         return discard_staged(staged);
     }
     staged.inputInstalled = true;
     g_resources = staged;
+    report::note_active();
     return true;
 }
 
@@ -169,12 +215,27 @@ bool create_render_target(Resources& resources) noexcept {
         kBackBufferIndex, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&backBuffer));
     if (FAILED(bufferResult) || backBuffer == nullptr) {
         release_com(backBuffer);
+        report::note(report::Stage::target, report::Reason::backBuffer);
         return false;
     }
-    const HRESULT targetResult =
+    HRESULT targetResult =
         resources.device->CreateRenderTargetView(backBuffer, nullptr, &resources.renderTarget);
+    if (FAILED(targetResult)) {
+        // The inferred description covers a typed buffer only.
+        D3D11_RENDER_TARGET_VIEW_DESC view{};
+        if (describe_view(backBuffer, view)) {
+            targetResult = resources.device->CreateRenderTargetView(
+                backBuffer, &view, &resources.renderTarget);
+        } else {
+            report::note(report::Stage::target, report::Reason::viewFormat);
+        }
+    }
     release_com(backBuffer);
-    return SUCCEEDED(targetResult) && resources.renderTarget != nullptr;
+    if (FAILED(targetResult) || resources.renderTarget == nullptr) {
+        report::note(report::Stage::target, report::Reason::view);
+        return false;
+    }
+    return true;
 }
 
 /** @param resources Chosen resources whose RTV is released. */
@@ -205,7 +266,7 @@ bool fully_active_locked() noexcept {
            && g_resources.context != nullptr && g_resources.renderTarget != nullptr
            && g_resources.layoutInitialized && g_resources.win32BackendInitialized
            && g_resources.dx11BackendInitialized && g_resources.inputInstalled
-           && g_resources.activeResizeCalls == 0 && input::active(g_resources.window);
+           && g_resources.activeSurfaceChanges == 0 && input::active(g_resources.window);
 }
 
 /** Shuts the whole renderer down under the exclusive state lock. */
@@ -228,7 +289,7 @@ bool active() noexcept {
 void present(IDXGISwapChain* swapChain) noexcept {
     AcquireSRWLockExclusive(&g_rendererLock);
     if (g_resources.swapChain != nullptr && g_resources.swapChain != swapChain
-        && g_resources.activeResizeCalls == 0
+        && g_resources.activeSurfaceChanges == 0
         && selection::matches_output_window(swapChain, g_resources.window)) {
         // A new valid surface for the same window replaces the retired chain.
         if (!shutdown_locked()) {
@@ -237,11 +298,12 @@ void present(IDXGISwapChain* swapChain) noexcept {
         }
     }
     if (g_resources.swapChain != nullptr && !fully_active_locked()) {
-        if (g_resources.activeResizeCalls != 0) {
-            // Present can run at the same time as the original resize, which owns the back buffer.
+        if (g_resources.activeSurfaceChanges != 0) {
+            // Present can run at the same time as the original call, which owns the back buffer.
             ReleaseSRWLockExclusive(&g_rendererLock);
             return;
         }
+        report::note(report::Stage::shutdown, report::Reason::surfaceLost);
         if (!shutdown_locked()) {
             ReleaseSRWLockExclusive(&g_rendererLock);
             return;

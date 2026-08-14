@@ -40,10 +40,11 @@ enum class CharacterClass : std::uint8_t {
     warlock = 2,
 };
 
-/** The first movement entry of a subclass's movement group, used when none is authored. */
+/** Default movement entry. Each subclass offers 3, as entries 4, 5 and 6 of its group. */
 inline constexpr std::uint8_t kDefaultMovementAbilityEntry = 4;
 /** No socket entry list declares more entries than this, so a larger value is not an entry. */
 inline constexpr std::uint8_t kMaximumMovementAbilityEntry = 63;
+
 /**
  * Socket entries of the other abilities a subclass lets the player choose. Each names one entry
  * of that ability's group. The subclass offers several and the character picks one. These

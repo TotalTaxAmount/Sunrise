@@ -51,11 +51,11 @@ void force_pending() noexcept;
 void clear_action_keys() noexcept;
 
 /**
- * Turns one authored binding index into the virtual key the scan will read.
- * @param index Key-table index taken from an authored binding.
+ * Turns one authored binding into the virtual key the scan will read.
+ * @param binding Input code taken from an authored binding half.
  * @return The virtual key, or 0 when there is none.
  */
-[[nodiscard]] std::uint32_t action_key(std::uint16_t index) noexcept;
+[[nodiscard]] std::uint32_t action_key(std::uint16_t binding) noexcept;
 
 /**
  * Calls the physics sync for one component through the installed trampoline.

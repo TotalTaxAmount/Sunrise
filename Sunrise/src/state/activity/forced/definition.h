@@ -15,9 +15,8 @@ inline constexpr std::uint16_t kMaximumSliceSet = 1'022;
 /** The set normal arrivals use. */
 inline constexpr std::uint32_t kDefaultSpawnSetHash = 0x2EA8FB98U;
 /**
- * The hash that names no set at all.
- * Forcing `default` on a map with no such set makes the Client's search find nothing and fall
- * through to an unrelated point, so a map without one is sent this instead.
+ * The hash that names no set, so the Client searches the loaded world itself.
+ * A set belongs to the map, not the bubble. Send one the bubble lacks and nothing spawns.
  */
 inline constexpr std::uint32_t kAbsentSpawnSetHash = 0x811C9DC5U;
 
@@ -33,11 +32,6 @@ struct ForcedDestination {
     std::uint16_t sliceSet{};
     /** Spawn-set name hash, used only when one was chosen. */
     std::uint32_t spawnSetHash{};
-    /**
-     * What to send when no spawn set is chosen, taken from the destination's own sets.
-     * The interface fills this in when the destination is picked.
-     */
-    std::uint32_t spawnFallback{kAbsentSpawnSetHash};
     bool hasBubble{};
     bool hasSliceSet{};
     bool hasSpawnSetHash{};
@@ -47,8 +41,7 @@ struct ForcedDestination {
 
 /**
  * Tests whether a forced destination names enough to replace a client selection.
- * The spawn set is the one optional part. Without it the default set is forced, because an
- * arrival with no spawn filter picks a point from anywhere on the map.
+ * The spawn set is the one optional part. Without it the Client picks its own point.
  * @param value Candidate selection.
  * @return True when the switch is on and the destination, bubble, and slice set are all named.
  */

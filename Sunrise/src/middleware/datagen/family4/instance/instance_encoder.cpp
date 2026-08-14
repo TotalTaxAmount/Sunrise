@@ -142,7 +142,10 @@ bool encode(const ResolvedInstance& input, std::span<std::byte> output) noexcept
     object.roll.socketEntryListIndex = input.socketEntryListIndex;
 
     if (input.ordinarySockets.state == OrdinarySocketBlockState::present) {
+        // Both permit masks are filled. The plug walk reads the definition's declared plugs as
+        // well as this instance's lanes, and skips whichever source its mask leaves unset.
         object.ordinarySockets.activeMask = layout::kAllSocketBits;
+        object.ordinarySockets.definitionUnlockMask = layout::kAllSocketBits;
         for (std::size_t index = 0; index < input.ordinarySockets.plugs.size(); ++index) {
             const std::optional<std::uint16_t>& plug = input.ordinarySockets.plugs[index];
             if (plug.has_value()) {

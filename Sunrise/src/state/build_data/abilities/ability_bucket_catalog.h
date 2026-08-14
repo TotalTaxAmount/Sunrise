@@ -11,7 +11,7 @@ namespace sunrise::state::build_data::abilities {
 void clear() noexcept;
 
 /**
- * Checks that no two rows share a subclass and movement selection.
+ * Checks that no two rows share a subclass and ability selection.
  * @param definitions Candidate rows.
  * @return True when the rows fit storage and every key is unique.
  */
@@ -25,13 +25,14 @@ void clear() noexcept;
 [[nodiscard]] bool replace(std::span<const Definition> definitions) noexcept;
 
 /**
- * Finds the buckets one subclass publishes under one movement selection.
+ * Finds the buckets one subclass publishes under one ability selection.
  * @param socketEntryListIndex Native socket-entry-list index of the subclass.
+ * @param selection The character's 5 selected socket entries.
  * @param definition Receives the matching row.
  * @return True when a row carries that exact key.
  */
 [[nodiscard]] bool find(std::uint16_t socketEntryListIndex,
-                        std::uint8_t movementEntry,
+                        const Selection& selection,
                         Definition& definition) noexcept;
 
 /**

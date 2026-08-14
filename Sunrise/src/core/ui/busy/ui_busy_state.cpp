@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "../../logging/log.h"
 #include "busy.h"
 
 namespace sunrise::core::ui::busy {
@@ -22,6 +23,8 @@ constexpr ULONGLONG kPresentIdleMilliseconds = 250;
 /** The Present hook is installed just before the first raise, so the first frame gets this long
  * before the overlay is given up on. */
 constexpr ULONGLONG kFirstPresentGraceMilliseconds = 250;
+/** Longest a deferred caller waits for an overlay frame while the game is presenting. */
+constexpr ULONGLONG kEarlyWaitMilliseconds = 1000;
 /** An overlay drawn this recently is still on screen, so the next task need not wait for it. */
 constexpr ULONGLONG kVisibleRecentlyMilliseconds = 250;
 /** One millisecond yields the core between polls of the present counter. */
@@ -49,6 +52,7 @@ struct EarlyState {
     std::uint32_t start{};
     ULONGLONG armedTick{};
     bool armed{};
+    bool expiryReported{};
 };
 
 SRWLOCK g_earlyLock{SRWLOCK_INIT};
@@ -115,15 +119,28 @@ bool raise_early(Task task) noexcept {
         early.armedTick = now;
         early.armed = true;
     }
+    const ULONGLONG waited = now - early.armedTick;
     bool waiting = false;
+    bool expired = false;
     if (g_lastPresentTick.load(std::memory_order_acquire) == 0) {
         // No frame has passed through the hook yet, which is expected on the call that
         // installed it. The game gets a bounded chance to draw one.
-        waiting = now - early.armedTick < kFirstPresentGraceMilliseconds;
+        waiting = waited < kFirstPresentGraceMilliseconds;
     } else if (drawing()) {
-        waiting = g_shownPresents.load(std::memory_order_acquire) - early.start < kRequiredPresents;
+        const bool shown =
+            g_shownPresents.load(std::memory_order_acquire) - early.start >= kRequiredPresents;
+        // Bounded: an overlay that never completes must not defer the caller for the whole run.
+        waiting = !shown && waited < kEarlyWaitMilliseconds;
+        expired = !shown && !waiting && !early.expiryReported;
+        early.expiryReported = early.expiryReported || expired;
     }
     ReleaseSRWLockExclusive(&g_earlyLock);
+    if (expired) {
+        // The sink takes a process-wide lock, so it is written outside the state lock.
+        core::log::write(core::log::Channel::core,
+                         core::log::Level::warn,
+                         "ev=busy stage=early result=expired reason=no_overlay_frame");
+    }
     return waiting;
 }
 

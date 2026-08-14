@@ -1,3 +1,5 @@
+#include <limits>
+
 #include "../../../state/entitlements/validation.h"
 #include "../parser.h"
 
@@ -14,6 +16,7 @@ bool Parser::server_settings(server::Settings& output) noexcept {
         return true;
     }
     bool hasEntitlements = false;
+    bool hasBapPort = false;
     for (;;) {
         std::string_view key;
         if (!string(key) || !consume(':')) {
@@ -24,6 +27,14 @@ bool Parser::server_settings(server::Settings& output) noexcept {
                 return false;
             }
             hasEntitlements = true;
+        } else if (key == "bap_port") {
+            std::uint64_t value = 0;
+            if (hasBapPort || !unsigned_integer(value) || value == 0
+                || value > (std::numeric_limits<std::uint16_t>::max)()) {
+                return false;
+            }
+            output.bapPort = static_cast<std::uint16_t>(value);
+            hasBapPort = true;
         } else if (!skip_value(0)) {
             return false;
         }

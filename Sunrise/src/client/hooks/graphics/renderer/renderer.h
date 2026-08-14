@@ -9,11 +9,11 @@ namespace sunrise::client::hooks::graphics::renderer {
 /** Draws the UI frame, if any, for a checked swap chain. */
 void present(IDXGISwapChain* swapChain) noexcept;
 
-/** Drops our render target before a resize. */
-void before_resize(IDXGISwapChain* swapChain) noexcept;
+/** Drops our render target before a call that recreates the back buffers. */
+void before_surface_change(IDXGISwapChain* swapChain) noexcept;
 
-/** Rebuilds our render state after the original resize returns. */
-void after_resize(IDXGISwapChain* swapChain, HRESULT result) noexcept;
+/** Rebuilds our render state after that call returns. */
+void after_surface_change(IDXGISwapChain* swapChain, HRESULT result) noexcept;
 
 /** Frees our resources when Present reports a lost device. */
 void present_result(IDXGISwapChain* swapChain, HRESULT result) noexcept;

@@ -30,8 +30,6 @@ namespace {
 
 /** Network-order IPv4 loopback returned by the in-process SignOn route. */
 constexpr std::uint32_t kLoopbackAddress = 0x7F000001;
-/** BAP relay port used by the generated SignOn response. */
-constexpr std::uint16_t kDefaultRelayPort = 30974;
 /** Default one-hour lifetime for generated SignOn session tokens. */
 constexpr std::uint32_t kDefaultTokenLifetimeSeconds = 3600;
 /** Family 5 uses the largest signed 64-bit value as its process-global object key. */
@@ -105,7 +103,8 @@ bool initialize(void* module,
         return false;
     }
     initialized.signOn.relayAddress = kLoopbackAddress;
-    initialized.signOn.relayPort = kDefaultRelayPort;
+    // The published relay port is the one the listener binds, so both move with one setting.
+    initialized.signOn.relayPort = core::settings::get().server.bapPort;
     initialized.signOn.tokenLifetimeSeconds = kDefaultTokenLifetimeSeconds;
     initialized.account = initialAccount;
     initialized.activity.defaults = activityDefaults;
